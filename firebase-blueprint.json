@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "An income or expense entry tracked by the user.",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "The numeric amount of the transaction."
+        },
+        "description": {
+          "type": "string",
+          "description": "Textual description of what the transaction was for."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the transaction (e.g., Makanan, Gaji)."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["expense", "income"],
+          "description": "Whether this is an expense or income."
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the transaction occurred."
+        },
+        "wallet": {
+          "type": "string",
+          "description": "The source or destination of funds (e.g., Cash, GOPAY, M-Banking)."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this record."
+        }
+      },
+      "required": ["amount", "description", "category", "type", "date", "wallet", "userId"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "A payment method or fund source (e.g. Cash, Bank).",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the wallet."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this wallet."
+        }
+      },
+      "required": ["name", "userId"]
+    },
+    "CustomCategory": {
+      "title": "Custom Category",
+      "description": "A user-defined category for transactions.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the category."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["expense", "income"],
+          "description": "Type of category."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this category."
+        }
+      },
+      "required": ["name", "type", "userId"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "photoURL": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "displayName", "createdAt"]
+    }
+  },
+  "firestore": {
+    "transactions": {
+      "schema": "Transaction",
+      "description": "Collection of user transactions."
+    },
+    "customCategories": {
+      "schema": "CustomCategory",
+      "description": "Collection of custom categories."
+    },
+    "wallets": {
+      "schema": "Wallet",
+      "description": "Collection of user wallets/payment methods."
+    },
+    "users": {
+      "schema": "User",
+      "description": "Collection of user profiles."
+    }
+  }
+}

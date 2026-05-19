@@ -1,0 +1,6 @@
+{
+  "name": "Catat Duit - AI Expense Tracker",
+  "description": "Pencatat pengeluaran bertenaga AI dengan input bahasa alami.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
