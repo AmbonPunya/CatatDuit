@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { getAnalytics } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -14,9 +15,18 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 
-import config from '../firebase-applet-config.json';
+const firebaseConfig = {
+  apiKey: "AIzaSyAD1BteHbzIeXDay8PXbp5GxiaB4r_MSbQ",
+  authDomain: "catatduit-f4943.firebaseapp.com",
+  projectId: "catatduit-f4943",
+  storageBucket: "catatduit-f4943.firebasestorage.app",
+  messagingSenderId: "243810240079",
+  appId: "1:243810240079:web:a3cae880f1c2bd55288c3a",
+  measurementId: "G-NV1M1B7N1S"
+};
 
-const app = initializeApp(config);
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
