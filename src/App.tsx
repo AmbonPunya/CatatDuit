@@ -15,7 +15,7 @@ import {
   setAccessToken,
   getAccessToken
 } from './firebase';
-import { onAuthStateChanged, User, GoogleAuthProvider } from 'firebase/auth';
+import { onAuthStateChanged, User, GoogleAuthProvider, signInAnonymously } from 'firebase/auth';
 import { Transaction, CustomCategory, Wallet as WalletType } from './types';
 
 enum OperationType {
@@ -145,6 +145,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<boolean>(false);
+  const [copiedDomain, setCopiedDomain] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'categories' | 'wallets'>('categories');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -209,7 +211,11 @@ export default function App() {
 
   // Effect to close transaction action dropdowns on clicking outside
   useEffect(() => {
-    const handleOutsideClick = () => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.dropdown-trigger') || target.closest('.dropdown-menu')) {
+        return;
+      }
       setActiveDropdownId(null);
     };
     window.addEventListener('click', handleOutsideClick);
@@ -284,16 +290,38 @@ export default function App() {
       if (credential?.accessToken) {
         setAccessToken(credential.accessToken);
       }
+      setUnauthorizedDomain(false);
       return true;
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
         console.warn('Login process was cancelled or interrupted.');
+      } else if (error.code === 'auth/unauthorized-domain' || (error.message && error.message.includes('auth/unauthorized-domain'))) {
+        console.error('Login error (unauthorized domain):', error);
+        setUnauthorizedDomain(true);
       } else {
         console.error('Login error:', error);
         alert('Gagal masuk: ' + (error.message || 'Terjadi kesalahan sistem.'));
       }
       return false;
     }
+  };
+
+  const handleGuestLogin = async () => {
+    try {
+      await signInAnonymously(auth);
+      setUnauthorizedDomain(false);
+      return true;
+    } catch (error: any) {
+      console.error('Guest login error:', error);
+      alert('Gagal masuk sebagai tamu: ' + (error.message || 'Harap aktifkan "Anonymous Sign-in" di Firebase Console Anda jika ingin menggunakan mode tamu.'));
+      return false;
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedDomain(text);
+    setTimeout(() => setCopiedDomain(null), 2000);
   };
 
   const handleLogout = async () => {
@@ -641,6 +669,98 @@ export default function App() {
   }
 
   if (!user) {
+    if (unauthorizedDomain) {
+      const currentHost = window.location.hostname;
+      const pairedHost = currentHost.startsWith('ais-dev-') 
+        ? currentHost.replace('ais-dev-', 'ais-pre-') 
+        : currentHost.replace('ais-pre-', 'ais-dev-');
+      const domainsToAuthorize = Array.from(new Set([
+        'localhost',
+        currentHost,
+        pairedHost
+      ])).filter(Boolean);
+
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 md:p-6 text-center">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-xl w-full"
+          >
+            <div className="bg-white p-6 sm:p-10 rounded-[2.5rem] shadow-2xl shadow-indigo-100 border-8 border-white text-left">
+              <div className="w-16 h-16 bg-rose-50 rounded-[1.5rem] flex items-center justify-center mb-6 text-rose-600 border border-rose-100">
+                <X className="w-8 h-8" />
+              </div>
+              
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight mb-2">
+                Domain <span className="text-rose-600">Belum Diizinkan</span>
+              </h1>
+              <p className="text-slate-500 font-medium text-sm leading-relaxed mb-6">
+                Firebase mendeteksi upaya login dari domain yang belum didaftarkan di proyek Firebase baru Anda (<span className="font-semibold text-slate-700">catatduit-f4943</span>). Ikuti langkah mudah di bawah ini untuk memperbaikinya:
+              </p>
+
+              <div className="space-y-4 mb-8 bg-slate-50 p-4 sm:p-6 rounded-2xl border border-slate-100">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-indigo-100 text-indigo-700 font-bold text-xs rounded-full flex items-center justify-center shrink-0 mt-0.5">1</div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">Buka Firebase Console</p>
+                    <p className="text-xs text-slate-500 mt-0.5 font-medium">Akses menu <span className="font-semibold text-slate-700">Build &gt; Authentication &gt; tab Settings</span>.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-indigo-100 text-indigo-700 font-bold text-xs rounded-full flex items-center justify-center shrink-0 mt-0.5">2</div>
+                  <div className="w-full">
+                    <p className="text-sm font-bold text-slate-800 font-sans font-medium">Tambahkan Authorized Domains</p>
+                    <p className="text-xs text-slate-500 mt-0.5 mb-2 font-medium">Scroll ke panel <span className="font-semibold text-slate-700">Authorized domains</span>, klik "Add domain" dan salin domain di bawah ini:</p>
+                    
+                    <div className="space-y-2 mt-2">
+                      {domainsToAuthorize.map((domain) => (
+                        <div key={domain} className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                          <code className="text-xs font-mono text-indigo-600 break-all">{domain}</code>
+                          <button
+                            onClick={() => copyToClipboard(domain)}
+                            className="text-[10px] font-bold px-2.5 py-1.5 bg-slate-100 text-slate-700 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shrink-0 active:scale-95"
+                          >
+                            {copiedDomain === domain ? 'Tersalin ✓' : 'Salin'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button 
+                  onClick={handleLogin}
+                  className="flex-1 bg-slate-900 text-white font-bold py-4 px-6 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-800 hover:-translate-y-0.5 transition-all shadow-lg active:scale-95 text-sm cursor-pointer"
+                >
+                  <LogIn className="w-5 h-5 text-indigo-400" />
+                  Coba Masuk Lagi
+                </button>
+                <button 
+                  onClick={handleGuestLogin}
+                  className="flex-1 bg-white border-2 border-slate-200 text-slate-700 font-bold py-4 px-6 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-50 hover:border-slate-300 hover:-translate-y-0.5 transition-all active:scale-95 text-sm cursor-pointer"
+                >
+                  Masuk Sebagai Tamu
+                </button>
+              </div>
+
+              <div className="mt-6 text-center">
+                <button 
+                  onClick={() => setUnauthorizedDomain(false)}
+                  className="text-xs text-slate-400 hover:text-slate-600 font-bold underline transition-colors"
+                >
+                  Kembali ke Halaman Utama
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
         <motion.div 
@@ -919,7 +1039,7 @@ export default function App() {
                                   e.stopPropagation();
                                   setActiveDropdownId(activeDropdownId === t.id ? null : t.id);
                                 }}
-                                className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-800 transition-all active:scale-95 flex items-center justify-center mx-auto"
+                                className="dropdown-trigger p-2 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-800 transition-all active:scale-95 flex items-center justify-center mx-auto"
                                 title="Aksi"
                               >
                                 <MoreVertical className="w-5 h-5" />
@@ -927,7 +1047,7 @@ export default function App() {
 
                               {activeDropdownId === t.id && (
                                 <div 
-                                  className="absolute right-0 mt-2 w-48 rounded-2xl bg-white shadow-2xl border border-slate-100 py-2 z-50 transform origin-top-right transition-all text-left"
+                                  className="dropdown-menu absolute right-0 mt-2 w-48 rounded-2xl bg-white shadow-2xl border border-slate-100 py-2 z-50 transform origin-top-right transition-all text-left"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <button
