@@ -1005,7 +1005,10 @@ export default function App() {
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: 10 }}
-                          className="hover:bg-slate-50/50 transition-colors group"
+                          className={cn(
+                            "hover:bg-slate-50/50 transition-colors group",
+                            activeDropdownId === t.id ? "relative z-40 bg-slate-50/50" : ""
+                          )}
                         >
                           <td className="px-8 py-5 text-xs text-slate-400 font-medium whitespace-nowrap">
                             {t.date?.toDate ? t.date.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '...'}
@@ -1037,9 +1040,12 @@ export default function App() {
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  if (e.nativeEvent && e.nativeEvent.stopImmediatePropagation) {
+                                    e.nativeEvent.stopImmediatePropagation();
+                                  }
                                   setActiveDropdownId(activeDropdownId === t.id ? null : t.id);
                                 }}
-                                className="dropdown-trigger p-2 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-800 transition-all active:scale-95 flex items-center justify-center mx-auto"
+                                className="dropdown-trigger p-2 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-800 transition-all active:scale-95 flex items-center justify-center mx-auto animate-none"
                                 title="Aksi"
                               >
                                 <MoreVertical className="w-5 h-5" />
