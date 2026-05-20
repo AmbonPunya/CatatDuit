@@ -144,6 +144,7 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'categories' | 'wallets'>('categories');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -205,6 +206,17 @@ export default function App() {
 
     syncProfile();
   }, [user]);
+
+  // Effect to close transaction action dropdowns on clicking outside
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setActiveDropdownId(null);
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => {
+      window.removeEventListener('click', handleOutsideClick);
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -901,19 +913,45 @@ export default function App() {
                             {t.type === 'income' ? '+' : '-'} Rp {t.amount.toLocaleString('id-ID')}
                           </td>
                           <td className="px-8 py-5 text-center">
-                            <div className="flex items-center justify-center gap-2">
+                            <div className="relative inline-block text-left">
                               <button 
-                                onClick={() => setEditingTransaction(t)}
-                                className="p-2 bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all opacity-0 group-hover:opacity-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDropdownId(activeDropdownId === t.id ? null : t.id);
+                                }}
+                                className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-800 transition-all active:scale-95 flex items-center justify-center mx-auto"
+                                title="Aksi"
                               >
-                                <Pencil className="w-4 h-4" />
+                                <MoreVertical className="w-5 h-5" />
                               </button>
-                              <button 
-                                onClick={() => handleDeleteTransaction(t.id)}
-                                className="p-2 bg-slate-50 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+
+                              {activeDropdownId === t.id && (
+                                <div 
+                                  className="absolute right-0 mt-2 w-48 rounded-2xl bg-white shadow-2xl border border-slate-100 py-2 z-50 transform origin-top-right transition-all text-left"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    onClick={() => {
+                                      setEditingTransaction(t);
+                                      setActiveDropdownId(null);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-left"
+                                  >
+                                    <Pencil className="w-4 h-4 text-indigo-500" />
+                                    Edit Transaksi
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      handleDeleteTransaction(t.id);
+                                      setActiveDropdownId(null);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors text-left"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-rose-500" />
+                                    Hapus Transaksi
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </motion.tr>
@@ -1193,12 +1231,12 @@ export default function App() {
           )}
 
           {showSettings && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-6 sm:p-24 bg-slate-900/50 backdrop-blur-sm overflow-auto">
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-24 bg-slate-900/50 backdrop-blur-sm overflow-auto">
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-6 md:p-10 border-8 border-white relative"
+                className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-4 md:border-8 border-white relative max-h-[90vh] overflow-y-auto"
               >
                 <div className="flex justify-between items-center mb-10">
                   <div className="flex gap-4">
