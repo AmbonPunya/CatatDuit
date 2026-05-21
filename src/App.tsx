@@ -823,22 +823,22 @@ export default function App() {
                     <Search className="w-3.5 h-3.5 text-slate-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   </div>
                   <div className="flex items-center gap-2 w-full md:w-auto">
-                    <div className="relative flex-1 md:w-32">
+                    <div className="relative flex-1 md:w-auto">
                       <input 
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full pl-8 pr-2 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[10px] font-bold uppercase tracking-tight text-slate-800 shadow-sm"
+                        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[10px] font-bold uppercase tracking-tight text-slate-800 shadow-sm"
                       />
                       <Calendar className="w-3 h-3 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2" />
                     </div>
                     <span className="text-slate-300 font-bold">-</span>
-                    <div className="relative flex-1 md:w-32">
+                    <div className="relative flex-1 md:w-auto">
                       <input 
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
-                        className="w-full pl-8 pr-2 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[10px] font-bold uppercase tracking-tight text-slate-800 shadow-sm"
+                        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[10px] font-bold uppercase tracking-tight text-slate-800 shadow-sm"
                       />
                       <Calendar className="w-3 h-3 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2" />
                     </div>
@@ -870,42 +870,42 @@ export default function App() {
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 10 }}
-            className="flex items-center py-4 group relative gap-3 md:gap-4 border-b border-slate-50 last:border-0"
+            className="flex items-start sm:items-center py-4 px-4 lg:px-8 group relative gap-2 sm:gap-3 md:gap-4 border-b border-slate-50 last:border-0"
           >
             {/* Kolom 1: Tanggal */}
-            <div className="flex flex-col flex-shrink-0 min-w-[50px] md:min-w-[60px]">
-              <span className="text-sm font-bold text-slate-800">
+            <div className="flex flex-col flex-shrink-0 min-w-[45px] sm:min-w-[50px] md:min-w-[60px] pt-1 sm:pt-0">
+              <span className="text-xs sm:text-sm font-bold text-slate-800">
                 {t.date?.toDate ? t.date.toDate().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-') : '--'}
               </span>
-              <span className="text-xs text-slate-400 font-medium mt-0.5">
+              <span className="text-[10px] sm:text-xs text-slate-400 font-medium mt-0.5">
                 {t.date?.toDate ? t.date.toDate().getFullYear() : '----'}
               </span>
             </div>
 
             {/* Kolom 2: Keterangan & Kategori */}
-            <div className="flex flex-col flex-1 overflow-hidden">
-              <span className="text-sm md:text-base font-bold text-slate-800 truncate">
+            <div className="flex flex-col flex-1 min-w-0 pt-0.5 sm:pt-0 pl-1 sm:pl-0 pr-1">
+              <span className="text-sm md:text-base font-bold text-slate-800 break-words line-clamp-2 leading-tight sm:leading-normal">
                 {t.description}
               </span>
-              <span className="text-xs text-slate-400 font-medium truncate mt-0.5">
+              <span className="text-[10px] sm:text-xs text-slate-400 font-medium mt-1 sm:mt-0.5">
                 {t.category}
               </span>
             </div>
 
             {/* Kolom 3: Nominal & Dompet */}
-            <div className="flex flex-col items-end flex-shrink-0">
-              <span className={`text-sm md:text-base font-black ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <div className="flex flex-col items-end flex-shrink-0 pt-0.5 sm:pt-0">
+              <span className={`text-sm md:text-base font-black whitespace-nowrap ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {t.type === 'income' ? '+' : '-'} Rp {t.amount.toLocaleString('id-ID')}
               </span>
-              <span className="text-[10px] md:text-xs text-slate-400 font-bold mt-0.5 uppercase tracking-wider">
+              <span className="text-[9px] sm:text-[10px] md:text-xs text-slate-400 font-bold mt-1 sm:mt-0.5 uppercase tracking-wider">
                 {t.wallet || 'Tunai'}
               </span>
             </div>
 
             {/* Kolom 4: Titik Tiga (Aksi) */}
-            <div className="relative flex-shrink-0">
-              <button className="p-1.5 md:p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors peer">
-                <MoreVertical className="w-5 h-5" />
+            <div className="relative flex-shrink-0 pt-0.5 sm:pt-0">
+              <button className="p-1 sm:p-1.5 md:p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors peer">
+                <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               
               {/* Dropdown Menu Edit & Hapus */}
