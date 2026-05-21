@@ -39,9 +39,10 @@ async function startServer() {
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Ekstrak data pengeluaran dari kalimat berikut dalam bahasa Indonesia: "${text}"`,
+        model: "gemini-3.5-flash",
+        contents: `Ekstrak data transaksi keuangan (bisa berupa pemasukan atau pengeluaran) dari kalimat berikut dalam bahasa Indonesia: "${text}"`,
         config: {
+          systemInstruction: "Anda adalah asisten pencatatan keuangan pribadi pintar dalam bahasa Indonesia. Ekstrak informasi dari teks pengguna dengan tepat ke dalam skema JSON yang diminta.",
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,

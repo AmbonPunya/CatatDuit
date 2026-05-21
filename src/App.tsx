@@ -855,82 +855,82 @@ export default function App() {
                 </div>
               </div>
               <div className="flex-1 overflow-auto max-h-[600px]">
-                <div className="flex flex-col w-full">
-  {filteredTransactions.length === 0 ? (
-    <div className="py-20 text-center flex flex-col items-center gap-3 opacity-20">
-      <WalletIcon className="w-12 h-12" />
-      <p className="text-sm font-bold uppercase tracking-widest italic">Belum ada transaksi</p>
-    </div>
-  ) : (
-    <div className="divide-y divide-slate-100">
-      <AnimatePresence mode="popLayout">
-        {filteredTransactions.map((t) => (
-          <motion.div 
-            key={t.id} 
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 10 }}
-            className="flex items-center justify-between py-4 group relative"
-          >
-            {/* Kolom 1: Tanggal */}
-            <div className="flex flex-col w-14 md:w-20 flex-shrink-0">
-              <span className="text-xs md:text-sm font-bold text-slate-800">
-                {t.date?.toDate ? t.date.toDate().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-') : '--'}
-              </span>
-              <span className="text-[10px] md:text-xs text-slate-500 font-medium mt-0.5">
-                {t.date?.toDate ? t.date.toDate().getFullYear() : '----'}
-              </span>
-            </div>
-
-            {/* Kolom 2: Keterangan & Kategori */}
-            <div className="flex flex-col flex-1 px-2 md:px-4 overflow-hidden">
-              <span className="text-sm md:text-base font-bold text-slate-800 truncate">
-                {t.description}
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium truncate mt-1">
-                {t.category}
-              </span>
-            </div>
-
-            {/* Kolom 3: Nominal & Dompet */}
-            <div className="flex flex-col items-end flex-shrink-0 px-2 md:px-4">
-              <span className={`text-sm md:text-base font-black ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {t.type === 'income' ? '+' : '-'} Rp {t.amount.toLocaleString('id-ID')}
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium mt-1 uppercase tracking-wider">
-                {t.wallet || 'Tunai'}
-              </span>
-            </div>
-
-            {/* Kolom 4: Titik Tiga (Aksi) */}
-            <div className="relative flex-shrink-0">
-              <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors peer">
-                <MoreVertical className="w-5 h-5" />
-              </button>
-              
-              {/* Dropdown Menu Edit & Hapus */}
-              <div className="absolute right-0 top-full mt-1 hidden w-36 bg-white rounded-xl shadow-[0_5px_15px_-3px_rgba(0,0,0,0.1)] border border-slate-100 z-50 peer-focus:block hover:block overflow-hidden">
-                <button
-                  onClick={() => setEditingTransaction(t)}
-                  className="w-full text-left px-4 py-3 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 transition-colors"
-                >
-                  <Pencil className="w-3.5 h-3.5" /> Edit
-                </button>
-                <div className="h-[1px] w-full bg-slate-50"></div>
-                <button
-                  onClick={() => handleDeleteTransaction(t.id)}
-                  className="w-full text-left px-4 py-3 text-xs font-bold text-rose-500 hover:bg-rose-50 flex items-center gap-2 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Hapus
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
-  )}
-</div>
+                <table className="w-full text-left">
+                  <thead className="sticky top-0 bg-white/95 backdrop-blur-sm shadow-[0_1px_0_0_rgba(0,0,0,0.05)] z-10">
+                    <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <th className="px-8 py-4">Tanggal</th>
+                      <th className="px-4 py-4">Keterangan</th>
+                      <th className="px-4 py-4 text-center">Dompet / Kategori</th>
+                      <th className="px-4 py-4 text-right">Nominal</th>
+                      <th className="px-8 py-4 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    <AnimatePresence mode="popLayout">
+                      {filteredTransactions.map((t) => (
+                        <motion.tr 
+                          key={t.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 10 }}
+                          className="hover:bg-slate-50/50 transition-colors group"
+                        >
+                          <td className="px-8 py-5 text-xs text-slate-400 font-medium whitespace-nowrap">
+                            {t.date?.toDate ? t.date.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '...'}
+                          </td>
+                          <td className="px-4 py-5">
+                            <p className="font-bold text-slate-700">{t.description}</p>
+                            <p className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">{t.type === 'expense' ? 'Pengeluaran' : 'Pemasukan'}</p>
+                          </td>
+                          <td className="px-4 py-5 text-center">
+                            <div className="flex flex-col items-center gap-1.5">
+                              <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{t.wallet || 'Tunai'}</span>
+                              <span 
+                                className="px-3 py-0.5 rounded-full text-[9px] font-bold border" 
+                                style={{ 
+                                  color: CATEGORY_COLORS[t.category] || '#64748b', 
+                                  backgroundColor: `${CATEGORY_COLORS[t.category] || '#64748b'}15`,
+                                  borderColor: `${CATEGORY_COLORS[t.category] || '#64748b'}30`
+                                }}
+                              >
+                                {t.category}
+                              </span>
+                            </div>
+                          </td>
+                          <td className={cn("px-4 py-5 text-right font-black", t.type === 'income' ? "text-emerald-600" : "text-slate-800")}>
+                            {t.type === 'income' ? '+' : '-'} Rp {t.amount.toLocaleString('id-ID')}
+                          </td>
+                          <td className="px-8 py-5 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button 
+                                onClick={() => setEditingTransaction(t)}
+                                className="p-2 bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteTransaction(t.id)}
+                                className="p-2 bg-slate-50 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </AnimatePresence>
+                    {filteredTransactions.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-20 text-center">
+                          <div className="flex flex-col items-center gap-3 opacity-20">
+                            <WalletIcon className="w-12 h-12" />
+                            <p className="text-sm font-bold uppercase tracking-widest italic">Belum ada transaksi</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
