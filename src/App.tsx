@@ -720,7 +720,7 @@ export default function App() {
         <main className="flex-1 flex flex-col p-6 md:p-10 gap-8 bg-white transition-colors">
           {/* Quick Stats */}
           <section className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="bg-white h-[60px] px-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-100 transition-all">
+            <div className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-100 transition-all">
               <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
                 <ArrowDownLeft className="w-5 h-5" />
               </div>
@@ -729,7 +729,7 @@ export default function App() {
                 <p className="text-sm font-black text-slate-800 tracking-tight leading-tight">Rp {totalIncome.toLocaleString('id-ID')}</p>
               </div>
             </div>
-            <div className="bg-white h-[60px] px-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-100 transition-all">
+            <div className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-100 transition-all">
               <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-600 shrink-0">
                 <ArrowUpRight className="w-5 h-5" />
               </div>
@@ -738,7 +738,7 @@ export default function App() {
                 <p className="text-sm font-black text-slate-800 tracking-tight leading-tight">Rp {totalExpense.toLocaleString('id-ID')}</p>
               </div>
             </div>
-            <div className="bg-white h-[60px] px-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-100 transition-all">
+            <div className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-100 transition-all">
               <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
                 <WalletIcon className="w-5 h-5" />
               </div>
@@ -847,7 +847,7 @@ export default function App() {
                         type="date"
                         value={startDate}
                         onChange={(e) => setStartDate(e.target.value)}
-                        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[10px] font-bold uppercase tracking-tight text-slate-800 shadow-sm -ml-[5px]"
+                        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[9px] font-bold uppercase tracking-tight text-slate-800 shadow-sm -ml-[5px]"
                       />
                       <Calendar className="w-3 h-3 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2 -ml-[5px]" />
                     </div>
@@ -857,7 +857,7 @@ export default function App() {
                         type="date"
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
-                        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[10px] font-bold uppercase tracking-tight text-slate-800 shadow-sm"
+                        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[9px] font-bold uppercase tracking-tight text-slate-800 shadow-sm"
                       />
                       <Calendar className="w-3 h-3 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2" />
                     </div>
