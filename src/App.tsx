@@ -16,7 +16,7 @@ import {
   getAccessToken
 } from './firebase';
 import { onAuthStateChanged, User, GoogleAuthProvider } from 'firebase/auth';
-import { Transaction, CustomCategory, Wallet as WalletType } from './types';
+import { Transaction, CustomCategory, Wallet as WalletType, Budget } from './types';
 
 enum OperationType {
   CREATE = 'create',
@@ -92,9 +92,11 @@ import {
   Check,
   MoreVertical,
   ChevronDown,
+  ChevronUp,
   Search,
   Filter,
-  Calendar
+  Calendar,
+  TrendingUp
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { 
@@ -138,20 +140,31 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [wallets, setWallets] = useState<WalletType[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [editingBudgetCategory, setEditingBudgetCategory] = useState('');
+  const [editingBudgetAmount, setEditingBudgetAmount] = useState<number>(0);
   
   const [inputText, setInputText] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, type: 'transaction' | 'category' | 'wallet', message: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, type: 'transaction' | 'category' | 'wallet' | 'budget', message: string } | null>(null);
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'categories' | 'wallets'>('categories');
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showCategoryBudgets, setShowCategoryBudgets] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'categories'>('categories');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryValue, setEditingCategoryValue] = useState('');
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
   const [editingWalletValue, setEditingWalletValue] = useState('');
+  const [editingWalletAmount, setEditingWalletAmount] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income'>('all');
   const [chartPeriod, setChartPeriod] = useState<'week' | 'month' | 'year'>('month');
 
@@ -277,12 +290,72 @@ export default function App() {
       handleFirestoreError(error, OperationType.LIST, 'wallets');
     });
 
-    return () => { ut(); uc(); uw(); };
+    // Budgets query
+    const bq = query(
+      collection(db, 'budgets'),
+      where('userId', '==', user.uid)
+    );
+
+    const ub = onSnapshot(bq, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Budget[];
+      setBudgets(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'budgets');
+    });
+
+    return () => { ut(); uc(); uw(); ub(); };
   }, [user]);
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminEmail || !adminPassword) return;
+    try {
+      const { signInWithEmailAndPassword } = await import('firebase/auth');
+      const result = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+      if (result.user) {
+        setUser(result.user as User);
+      }
+      return true;
+    } catch (error: any) {
+      console.error("Email Login error:", error);
+      if (error.code === 'auth/invalid-credential') {
+        alert("Gagal masuk: Email atau password salah.");
+      } else {
+        alert("Gagal masuk: " + (error.message || 'Terjadi kesalahan.'));
+      }
+      return false;
+    }
+  };
+
+  const handleTestingLogin = async (role: 'Admin' | 'Tester') => {
+    try {
+      const { signInAnonymously, updateProfile } = await import('firebase/auth');
+      const result = await signInAnonymously(auth);
+      if (result.user) {
+        await updateProfile(result.user, {
+           displayName: `${role} User`
+        });
+        setUser({ ...result.user, displayName: `${role} User` } as User);
+      }
+      return true;
+    } catch (error: any) {
+      console.error(`${role} Login error:`, error);
+      if (error.code === 'auth/admin-restricted-operation' || error.code === 'auth/operation-not-allowed') {
+        alert(`Gagal masuk sebagai ${role}.\n\nSolusi: Anda harus mengaktifkan "Anonymous" sign-in provider di Firebase Console (Authentication > Sign-in method) agar login tester ini berfungsi.`);
+      } else {
+        alert(`Gagal masuk sebagai ${role}: ` + (error.message || 'Terjadi kesalahan.'));
+      }
+      return false;
+    }
+  };
 
   const handleLogin = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
+      const { browserPopupRedirectResolver } = await import('firebase/auth');
+      const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if (credential?.accessToken) {
         setAccessToken(credential.accessToken);
@@ -322,7 +395,24 @@ export default function App() {
       });
       const data = await res.json();
 
-      if (data.amount && data.description && data.category && data.type) {
+      if (data.type === 'transfer' && data.source_wallet && data.destination_wallet) {
+        const path = 'transactions';
+        await addDoc(collection(db, path), {
+          amount: data.amount,
+          description: data.description,
+          category: 'Transfer',
+          type: 'transfer',
+          wallet: 'Transfer', // placeholder for the mandatory field
+          source_wallet: data.source_wallet,
+          destination_wallet: data.destination_wallet,
+          date: Timestamp.now(),
+          userId: user.uid,
+        });
+        
+        setInputText('');
+        setIsExtracting(false);
+        return;
+      } else if (data.amount && data.description && data.category && data.type) {
         // We trigger the addDoc but don't strictly await it for the UI to feel responsive
         // Firestore handles the sync in the background
         const path = 'transactions';
@@ -330,8 +420,8 @@ export default function App() {
           amount: data.amount,
           description: data.description,
           category: data.category,
-          type: data.type,
-          wallet: data.wallet || 'Tunai',
+          type: data.type === 'transfer' ? 'expense' : data.type, // fallback
+          wallet: data.wallet || data.source_wallet || 'Tunai',
           date: Timestamp.now(),
           userId: user.uid,
         }).catch(err => {
@@ -385,14 +475,18 @@ export default function App() {
     }
   };
 
-  const handleAddWallet = async (name: string) => {
-    if (!user) return;
+  const handleAddWallet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !editingWalletValue.trim()) return;
     const path = 'wallets';
     try {
       await addDoc(collection(db, path), {
-        name,
+        name: editingWalletValue.trim(),
+        amount: editingWalletAmount || 0,
         userId: user.uid
       });
+      setEditingWalletValue('');
+      setEditingWalletAmount(0);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
     }
@@ -432,6 +526,9 @@ export default function App() {
       } else if (type === 'wallet') {
         path = `wallets/${id}`;
         await deleteDoc(doc(db, 'wallets', id));
+      } else if (type === 'budget') {
+        path = `budgets/${id}`;
+        await deleteDoc(doc(db, 'budgets', id));
       }
       setDeleteConfirm(null);
     } catch (error) {
@@ -439,15 +536,60 @@ export default function App() {
     }
   };
 
-  const handleUpdateWallet = async (id: string, newName: string) => {
-    if (!newName.trim()) return;
-    const path = `wallets/${id}`;
+  const handleUpdateWallet = async (id: string, newName: string, amount: number) => {
+    if (!newName.trim() || !user) return;
     try {
-      await updateDoc(doc(db, 'wallets', id), { name: newName.trim() });
+      if (id.startsWith('default-')) {
+        // Create new wallet with this name and amount since it's a default one being edited
+        await addDoc(collection(db, 'wallets'), {
+          name: newName.trim(),
+          amount: amount || 0,
+          userId: user.uid
+        });
+      } else {
+        const path = `wallets/${id}`;
+        await updateDoc(doc(db, 'wallets', id), { 
+          name: newName.trim(),
+          amount: amount || 0
+        });
+      }
       setEditingWalletId(null);
+      setEditingWalletValue('');
+      setEditingWalletAmount(0);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      handleFirestoreError(error, OperationType.UPDATE, 'wallets');
     }
+  };
+
+  const handleAddBudget = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !editingBudgetCategory || editingBudgetAmount <= 0) return;
+    try {
+      const path = 'budgets';
+      await addDoc(collection(db, path), {
+        userId: user.uid,
+        categoryId: editingBudgetCategory,
+        amount: editingBudgetAmount,
+      });
+      setEditingBudgetCategory('');
+      setEditingBudgetAmount(0);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'budgets');
+    }
+  };
+
+  const handleUpdateBudget = async (id: string, newAmount: number) => {
+    if (newAmount <= 0) return;
+    try {
+      await setDoc(doc(db, 'budgets', id), { amount: newAmount }, { merge: true });
+      setEditingBudgetId(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `budgets/${id}`);
+    }
+  };
+
+  const deleteBudget = (id: string) => {
+    setDeleteConfirm({ id, type: 'budget', message: 'Hapus budget ini?' });
   };
 
   const exportToExcel = () => {
@@ -455,8 +597,8 @@ export default function App() {
       Tanggal: t.date?.toDate ? t.date.toDate().toLocaleString() : '',
       Deskripsi: t.description,
       Kategori: t.category,
-      Dompet: t.wallet || 'Tunai',
-      Tipe: t.type === 'income' ? 'Pemasukan' : 'Pengeluaran',
+      Dompet: t.type === 'transfer' ? `${t.source_wallet} -> ${t.destination_wallet}` : (t.wallet || 'Tunai'),
+      Tipe: t.type === 'transfer' ? 'Transfer' : t.type === 'income' ? 'Pemasukan' : 'Pengeluaran',
       Nominal: t.amount,
     }));
 
@@ -503,8 +645,8 @@ export default function App() {
           t.date?.toDate ? t.date.toDate().toLocaleString() : '',
           t.description,
           t.category,
-          t.wallet || 'Tunai',
-          t.type === 'income' ? 'Pemasukan' : 'Pengeluaran',
+          t.type === 'transfer' ? `${t.source_wallet} -> ${t.destination_wallet}` : (t.wallet || 'Tunai'),
+          t.type === 'transfer' ? 'Transfer' : t.type === 'income' ? 'Pemasukan' : 'Pengeluaran',
           t.amount
         ])
       ];
@@ -542,7 +684,13 @@ export default function App() {
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const balance = totalIncome - totalExpense;
+  const combinedWallets = [
+    ...DEFAULT_WALLETS.filter(dw => !wallets.some(w => w.name === dw)).map(name => ({ id: `default-${name}`, name, amount: 0, isDefault: true })),
+    ...wallets.map(w => ({ ...w, isDefault: false }))
+  ];
+
+  const sumInitialBalances = combinedWallets.reduce((sum, w) => sum + (w.amount || 0), 0);
+  const balance = sumInitialBalances + totalIncome - totalExpense;
 
   const filteredTransactions = transactions.filter(t => {
     // Tab Filter
@@ -625,8 +773,8 @@ export default function App() {
 
   const expenseRatio = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : (totalExpense > 0 ? 100 : 0);
 
-  const expenseCategories = [...DEFAULT_EXPENSE_CATEGORIES, ...customCategories.filter(c => c.type === 'expense').map(c => c.name)];
-  const incomeCategories = [...DEFAULT_INCOME_CATEGORIES, ...customCategories.filter(c => c.type === 'income').map(c => c.name)];
+  const expenseCategories = ['Transfer', ...DEFAULT_EXPENSE_CATEGORIES, ...customCategories.filter(c => c.type === 'expense').map(c => c.name)];
+  const incomeCategories = ['Transfer', ...DEFAULT_INCOME_CATEGORIES, ...customCategories.filter(c => c.type === 'income').map(c => c.name)];
   const walletOptions = [...DEFAULT_WALLETS, ...wallets.map(w => w.name)];
 
   if (loading) {
@@ -664,13 +812,75 @@ export default function App() {
             <p className="text-slate-500 mb-10 text-sm font-medium leading-relaxed">
               Semua data Anda tersimpan aman secara cloud. Silakan masuk untuk melihat data transaksi Anda.
             </p>
-            <button 
-              onClick={handleLogin}
-              className="w-full bg-slate-900 text-white font-bold py-5 px-8 rounded-2xl flex items-center justify-center gap-4 hover:bg-slate-800 hover:-translate-y-1 transition-all shadow-xl shadow-slate-200 active:scale-95"
-            >
-              <LogIn className="w-6 h-6 text-indigo-400" />
-              Mulai Sekarang
-            </button>
+            <div className="space-y-4">
+              {!showAdminLogin ? (
+                <>
+                  <button 
+                    onClick={handleLogin}
+                    className="w-full bg-slate-900 text-white font-bold py-4 px-6 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-800 hover:-translate-y-1 transition-all shadow-xl shadow-slate-200 active:scale-95"
+                  >
+                    <LogIn className="w-5 h-5 text-indigo-400" />
+                    Masuk dengan Google
+                  </button>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      onClick={() => setShowAdminLogin(true)}
+                      className="w-full bg-emerald-50 text-emerald-700 font-bold py-3 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-100 transition-all shadow-sm active:scale-95 text-sm"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Admin
+                    </button>
+                    <button 
+                      onClick={() => handleTestingLogin('Tester')}
+                      className="w-full bg-amber-50 text-amber-700 font-bold py-3 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-amber-100 transition-all shadow-sm active:scale-95 text-sm"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Tester
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <form onSubmit={handleEmailLogin} className="space-y-4">
+                  <div className="space-y-2 text-left">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Email Admin</label>
+                    <input 
+                      type="email" 
+                      required
+                      value={adminEmail}
+                      onChange={e => setAdminEmail(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 rounded-xl border-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700 placeholder:text-slate-400 text-sm" 
+                      placeholder="admin@email.com"
+                    />
+                  </div>
+                  <div className="space-y-2 text-left">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Katasandi</label>
+                    <input 
+                      type="password" 
+                      required
+                      value={adminPassword}
+                      onChange={e => setAdminPassword(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 rounded-xl border-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-700 placeholder:text-slate-400 text-sm" 
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button 
+                      type="button"
+                      onClick={() => setShowAdminLogin(false)}
+                      className="w-1/3 bg-slate-100 text-slate-500 font-bold py-3 px-4 rounded-xl hover:bg-slate-200 transition-all text-sm"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      type="submit"
+                      className="w-2/3 bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all shadow-md active:scale-95 text-sm"
+                    >
+                      Masuk
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
             <p className="mt-8 text-[9px] text-slate-300 font-black uppercase tracking-[0.2em]">Data Automatis Disinkronkan</p>
           </div>
         </motion.div>
@@ -751,6 +961,68 @@ export default function App() {
             </div>
           </section>
 
+          {/* Anggaran & Dompet Cards */}
+          <section className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button 
+              onClick={() => setShowBudgetModal(true)}
+              className="bg-white border border-slate-200 shadow-sm rounded-[2rem] overflow-hidden hover:border-indigo-200 hover:shadow-md transition-all text-left p-5 md:p-6 flex flex-col justify-between h-[150px] group"
+            >
+              <div className="flex justify-between items-start w-full">
+                <div>
+                  <h3 className="text-lg font-black text-slate-800 tracking-tight leading-none mb-1 group-hover:text-indigo-600 transition-colors">Anggaran</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Pantau & Atur Pengeluaran</p>
+                </div>
+                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+              
+              {(() => {
+                const now = new Date();
+                const globalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
+                const globalSpent = transactions
+                  .filter(t => t.type === 'expense' && t.date?.toDate)
+                  .filter(t => {
+                    const tDate = t.date.toDate();
+                    return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+                  })
+                  .filter(t => budgets.some(b => b.categoryId === t.category))
+                  .reduce((sum, t) => sum + t.amount, 0);
+                const p = globalBudget > 0 ? (globalSpent / globalBudget) * 100 : 0;
+                return (
+                  <div className="flex flex-col gap-2 w-full mt-auto">
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden relative">
+                      <div className={cn("h-full rounded-full transition-all duration-500", p >= 90 ? "bg-rose-500" : p >= 75 ? "bg-amber-400" : "bg-emerald-400")} style={{ width: `${Math.min(p, 100)}%` }} />
+                    </div>
+                    <div className="flex justify-between items-center text-xs w-full">
+                      <span className="text-slate-500 font-bold whitespace-nowrap">Rp {globalSpent.toLocaleString('id-ID')}</span>
+                      <span className="text-slate-400 font-bold whitespace-nowrap text-right">/ Rp {globalBudget.toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </button>
+
+            <button 
+              onClick={() => setShowWalletModal(true)}
+              className="bg-white border border-slate-200 shadow-sm rounded-[2rem] overflow-hidden hover:border-emerald-200 hover:shadow-md transition-all text-left p-5 md:p-6 flex flex-col justify-between h-[150px] group"
+            >
+              <div className="flex justify-between items-start w-full">
+                <div>
+                  <h3 className="text-lg font-black text-slate-800 tracking-tight leading-none mb-1 group-hover:text-emerald-600 transition-colors">Dompet</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Kelola Sumber Dana</p>
+                </div>
+                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
+                  <WalletIcon className="w-5 h-5" />
+                </div>
+              </div>
+              
+              <div className="flex flex-col w-full mt-auto">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-1">{combinedWallets.length} Dompet Aktif</p>
+              </div>
+            </button>
+          </section>
+
           {/* Natural Language Input */}
           <section className="w-full space-y-4">
             <div className="flex items-center justify-between">
@@ -782,7 +1054,7 @@ export default function App() {
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Misal: 'gajian 5jt', 'bayar listrik 200rb', atau 'beli boba 25rb'..."
+                placeholder="Misal: 'gajian 5jt', 'bayar listrik 200rb', atau 'ambil cash ATM 1,5jt'..."
                 disabled={isExtracting}
                 className="w-full h-[65px] pl-6 pr-20 md:pr-48 text-lg bg-white rounded-2xl border-2 border-slate-100 shadow-xl shadow-slate-200/50 focus:border-indigo-400 focus:outline-none transition-all placeholder:text-slate-300 font-medium text-slate-800"
               />
@@ -913,11 +1185,11 @@ export default function App() {
 
             {/* Kolom 3: Nominal & Dompet */}
             <div className="flex flex-col items-end flex-shrink-0 pt-0.5 sm:pt-0">
-              <span className={`text-sm md:text-base font-black whitespace-nowrap ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {t.type === 'income' ? '+' : '-'} Rp {t.amount.toLocaleString('id-ID')}
+              <span className={`text-sm md:text-base font-black whitespace-nowrap ${t.type === 'transfer' ? 'text-blue-600' : t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {t.type === 'transfer' ? '' : t.type === 'income' ? '+' : '-'} Rp {t.amount.toLocaleString('id-ID')}
               </span>
               <span className="text-[9px] sm:text-[10px] md:text-xs text-slate-400 font-bold mt-1 sm:mt-0.5 uppercase tracking-wider">
-                {t.wallet || 'Tunai'}
+                {t.type === 'transfer' ? `${t.source_wallet || '?'} → ${t.destination_wallet || '?'}` : (t.wallet || 'Tunai')}
               </span>
             </div>
 
@@ -1217,40 +1489,72 @@ export default function App() {
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Tipe</label>
                       <select 
                         value={editingTransaction.type}
-                        onChange={(e) => setEditingTransaction({...editingTransaction, type: e.target.value as 'expense' | 'income', category: e.target.value === 'income' ? incomeCategories[0] : expenseCategories[0]})}
+                        onChange={(e) => setEditingTransaction({...editingTransaction, type: e.target.value as 'expense' | 'income' | 'transfer', category: e.target.value === 'transfer' ? 'Transfer' : (e.target.value === 'income' ? incomeCategories[0] : expenseCategories[0])})}
                         className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 appearance-none font-bold text-slate-700"
                       >
                         <option value="expense">Keluar</option>
                         <option value="income">Masuk</option>
+                        <option value="transfer">Transfer Beda Dompet</option>
                       </select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Kategori</label>
-                      <select 
-                        value={editingTransaction.category}
-                        onChange={(e) => setEditingTransaction({...editingTransaction, category: e.target.value})}
-                        className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 appearance-none font-bold text-slate-700 text-sm"
-                      >
-                        {(editingTransaction.type === 'expense' ? expenseCategories : incomeCategories).map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
+                  {editingTransaction.type === 'transfer' ? (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Dari Dompet (Sumber)</label>
+                        <select 
+                          value={editingTransaction.source_wallet || ''}
+                          onChange={(e) => setEditingTransaction({...editingTransaction, source_wallet: e.target.value})}
+                          className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 appearance-none font-bold text-slate-700 text-sm"
+                        >
+                          <option value="">Pilih Sumber...</option>
+                          {walletOptions.map(w => (
+                            <option key={w} value={w}>{w}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Ke Dompet (Tujuan)</label>
+                        <select 
+                          value={editingTransaction.destination_wallet || ''}
+                          onChange={(e) => setEditingTransaction({...editingTransaction, destination_wallet: e.target.value})}
+                          className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 appearance-none font-bold text-slate-700 text-sm"
+                        >
+                          <option value="">Pilih Tujuan...</option>
+                          {walletOptions.map(w => (
+                            <option key={w} value={w}>{w}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Sumber Dana (Dompet)</label>
-                      <select 
-                        value={editingTransaction.wallet || 'Tunai'}
-                        onChange={(e) => setEditingTransaction({...editingTransaction, wallet: e.target.value})}
-                        className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 appearance-none font-bold text-slate-700 text-sm"
-                      >
-                        {walletOptions.map(w => (
-                          <option key={w} value={w}>{w}</option>
-                        ))}
-                      </select>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Kategori</label>
+                        <select 
+                          value={editingTransaction.category}
+                          onChange={(e) => setEditingTransaction({...editingTransaction, category: e.target.value})}
+                          className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 appearance-none font-bold text-slate-700 text-sm"
+                        >
+                          {(editingTransaction.type === 'expense' ? expenseCategories : incomeCategories).map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Sumber Dana (Dompet)</label>
+                        <select 
+                          value={editingTransaction.wallet || 'Tunai'}
+                          onChange={(e) => setEditingTransaction({...editingTransaction, wallet: e.target.value})}
+                          className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 appearance-none font-bold text-slate-700 text-sm"
+                        >
+                          {walletOptions.map(w => (
+                            <option key={w} value={w}>{w}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <button type="submit" className="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 hover:bg-indigo-700 hover:-translate-y-1 transition-all mt-4">
                     Simpan Perubahan
                   </button>
@@ -1268,33 +1572,13 @@ export default function App() {
                 className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-4 md:border-8 border-white relative max-h-[90vh] overflow-y-auto"
               >
                 <div className="flex justify-between items-center mb-10">
-                  <div className="flex gap-4">
-                    <button 
-                      onClick={() => setSettingsTab('categories')}
-                      className={cn(
-                        "text-2xl font-black tracking-tight transition-all",
-                        settingsTab === 'categories' ? "text-slate-800" : "text-slate-300 hover:text-slate-400"
-                      )}
-                    >
-                      Kategori
-                    </button>
-                    <button 
-                      onClick={() => setSettingsTab('wallets')}
-                      className={cn(
-                        "text-2xl font-black tracking-tight transition-all",
-                        settingsTab === 'wallets' ? "text-slate-800" : "text-slate-300 hover:text-slate-400"
-                      )}
-                    >
-                      Dompet
-                    </button>
-                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Pengaturan Kategori</h3>
                   <button onClick={() => setShowSettings(false)} className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-rose-600 transition-all">
                     <X className="w-6 h-6" />
                   </button>
                 </div>
 
-                {settingsTab === 'categories' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                     <div className="space-y-6">
                       <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2">
                         <ArrowUpRight className="w-4 h-4" /> Pengeluaran
@@ -1441,80 +1725,333 @@ export default function App() {
                       </form>
                     </div>
                   </div>
-                ) : (
-                  <div className="space-y-6">
-                    <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2">
-                      <WalletIcon className="w-4 h-4" /> Daftar Dompet / Sumber Dana
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-auto pr-2">
-                      {DEFAULT_WALLETS.map((w, idx) => (
-                        <div key={`def-wal-${idx}`} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-transparent">
-                          <span className="font-bold text-slate-700">{w}</span>
-                          <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Bawaan</span>
-                        </div>
-                      ))}
-                      {wallets.map((w) => (
-                        <div key={w.id} className="flex items-center justify-between p-4 bg-white rounded-2xl group border border-slate-100 shadow-sm">
-                          {editingWalletId === w.id ? (
-                            <div className="flex-1 flex gap-2">
-                              <input 
-                                autoFocus
-                                type="text"
-                                value={editingWalletValue}
-                                onChange={(e) => setEditingWalletValue(e.target.value)}
-                                className="flex-1 bg-slate-50 px-3 py-1 rounded-lg border-none focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-slate-800"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleUpdateWallet(w.id, editingWalletValue);
-                                  if (e.key === 'Escape') setEditingWalletId(null);
-                                }}
-                              />
-                              <button onClick={() => handleUpdateWallet(w.id, editingWalletValue)} className="text-emerald-500 hover:text-emerald-600">
-                                <Check className="w-4 h-4" />
-                              </button>
-                              <button onClick={() => setEditingWalletId(null)} className="text-slate-400 hover:text-slate-500">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <>
-                              <span className="font-bold text-slate-700">{w.name}</span>
-                              <div className="flex items-center gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all">
-                                <button 
-                                  onClick={() => {
-                                    setEditingWalletId(w.id);
-                                    setEditingWalletValue(w.name);
-                                  }}
-                                  className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                <button 
-                                  onClick={() => deleteWallet(w.id)}
-                                  className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+              </motion.div>
+            </div>
+          )}
+
+          {showWalletModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-24 bg-slate-900/50 backdrop-blur-sm overflow-auto">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-4 md:border-8 border-white relative max-h-[90vh] overflow-y-auto"
+              >
+                <div className="flex justify-between items-center mb-10">
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Pengaturan Dompet</h3>
+                  <button onClick={() => setShowWalletModal(false)} className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-rose-600 transition-all">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                <div className="space-y-6">
+                  <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <WalletIcon className="w-4 h-4" /> Daftar Dompet / Sumber Dana
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-auto pr-2">
+                    {combinedWallets.map((w) => {
+                          const now = new Date();
+                          const incomes = transactions
+                            .filter(t => t.type === 'income' && (t.wallet === w.name || (!t.wallet && w.name === 'Tunai')) && t.date?.toDate)
+                            .reduce((sum, t) => sum + t.amount, 0);
+                          const expenses = transactions
+                            .filter(t => t.type === 'expense' && (t.wallet === w.name || (!t.wallet && w.name === 'Tunai')) && t.date?.toDate)
+                            .reduce((sum, t) => sum + t.amount, 0);
+                          const transfersIn = transactions
+                            .filter(t => t.type === 'transfer' && t.destination_wallet === w.name && t.date?.toDate)
+                            .reduce((sum, t) => sum + t.amount, 0);
+                          const transfersOut = transactions
+                            .filter(t => t.type === 'transfer' && t.source_wallet === w.name && t.date?.toDate)
+                            .reduce((sum, t) => sum + t.amount, 0);
+
+                          const currentBalance = (w.amount || 0) + incomes - expenses + transfersIn - transfersOut;
+
+                          return (
+                            <div key={w.id} className="flex flex-col p-4 bg-slate-50 rounded-2xl group border border-slate-100 shadow-sm gap-2 relative">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold text-slate-700 text-xs truncate max-w-[120px]">{w.name}</span>
+                                {w.isDefault ? (
+                                  <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Bawaan</span>
+                                ) : (
+                                  <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Custom</span>
+                                )}
                               </div>
-                            </>
+                              
+                              {editingWalletId === w.id ? (
+                                <form 
+                                  onSubmit={(e) => { e.preventDefault(); handleUpdateWallet(w.id, editingWalletValue, editingWalletAmount); }}
+                                  className="flex flex-col gap-2 mt-1"
+                                >
+                                  <div className="flex gap-2">
+                                    <input 
+                                      autoFocus
+                                      type="text"
+                                      value={editingWalletValue}
+                                      onChange={(e) => setEditingWalletValue(e.target.value)}
+                                      placeholder="Nama Dompet"
+                                      className="flex-1 bg-white px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-1 focus:ring-indigo-500 text-[11px] font-bold text-slate-800 shadow-sm"
+                                    />
+                                    <div className="flex gap-1 items-center">
+                                      <span className="text-[11px] font-bold text-slate-400">Rp</span>
+                                      <input 
+                                        type="number"
+                                        value={editingWalletAmount || ''}
+                                        onChange={(e) => setEditingWalletAmount(Number(e.target.value))}
+                                        placeholder="Saldo Awal"
+                                        className="w-24 bg-white px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-1 focus:ring-indigo-500 text-[11px] font-bold text-slate-800 shadow-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-end gap-2">
+                                    <button type="submit" className="text-emerald-500 hover:text-emerald-600 p-1">
+                                      <Check className="w-4 h-4" />
+                                    </button>
+                                    <button type="button" onClick={() => setEditingWalletId(null)} className="text-slate-400 hover:text-slate-500 p-1">
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </form>
+                              ) : (
+                                <div className="flex flex-col gap-2">
+                                   <div className="flex justify-between items-end border-b border-slate-200/50 pb-2">
+                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo Awal</span>
+                                     <span className="text-xs font-black text-slate-800">Rp {(w.amount || 0).toLocaleString('id-ID')}</span>
+                                   </div>
+                                   <div className="flex justify-between items-end">
+                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo Saat Ini</span>
+                                     <span className="text-xl font-black text-slate-800 tracking-tight">Rp {currentBalance.toLocaleString('id-ID')}</span>
+                                   </div>
+                                   <div className="flex items-center opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all gap-1 bg-white px-1 py-1 rounded-md shadow-sm border border-slate-100 absolute top-3 right-3">
+                                     <button 
+                                        onClick={() => {
+                                          setEditingWalletId(w.id);
+                                          setEditingWalletValue(w.name);
+                                          setEditingWalletAmount(w.amount || 0);
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                     </button>
+                                     {!w.isDefault && (
+                                       <button 
+                                          onClick={() => deleteWallet(w.id)}
+                                          className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                       </button>
+                                     )}
+                                   </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                      })}
+                  </div>
+                  <form onSubmit={handleAddWallet} className="flex gap-2 w-full mt-4">
+                    <input 
+                      type="text"
+                      value={editingWalletValue}
+                      onChange={(e) => setEditingWalletValue(e.target.value)}
+                      placeholder="Nama dompet baru..." 
+                      className="flex-1 bg-white px-4 py-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800 shadow-sm" 
+                    />
+                    <div className="relative w-1/3">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">Rp</span>
+                      <input 
+                        type="number"
+                        value={editingWalletAmount || ''}
+                        onChange={(e) => setEditingWalletAmount(Number(e.target.value))}
+                        placeholder="Saldo awal" 
+                        className="w-full bg-white pl-10 pr-4 py-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800 shadow-sm" 
+                      />
+                    </div>
+                    <button type="submit" className="px-6 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 shadow-md transition-all font-bold text-xs uppercase">
+                      Tambah
+                    </button>
+                  </form>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {showBudgetModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-24 bg-slate-900/50 backdrop-blur-sm overflow-auto">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-4 md:border-8 border-white relative max-h-[90vh] overflow-y-auto"
+              >
+                <div className="flex justify-between items-center mb-10">
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Pengaturan Anggaran</h3>
+                  <button onClick={() => setShowBudgetModal(false)} className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-rose-600 transition-all">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                
+                <div className="space-y-6">
+                  {(() => {
+                    const now = new Date();
+                    const globalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
+                    const globalSpent = transactions
+                      .filter(t => t.type === 'expense' && t.date?.toDate)
+                      .filter(t => {
+                        const tDate = t.date.toDate();
+                        return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+                      })
+                      .filter(t => budgets.some(b => b.categoryId === t.category))
+                      .reduce((sum, t) => sum + t.amount, 0);
+
+                    const percentage = globalBudget > 0 ? (globalSpent / globalBudget) * 100 : 0;
+                    const validPercentage = Math.min(percentage, 100);
+                    const isNearLimit = percentage >= 75 && percentage < 90;
+                    const isOverLimit = percentage >= 90;
+
+                    return (
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-700 text-sm">Total Terserap (Kategori Beranggaran)</span>
+                          {globalBudget === 0 ? (
+                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Belum diatur</span>
+                          ) : isOverLimit ? (
+                            <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-1 rounded-md uppercase tracking-wider">Kritis / Melebihi Batas</span>
+                          ) : isNearLimit ? (
+                            <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-md uppercase tracking-wider">Hampir Habis</span>
+                          ) : (
+                            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md uppercase tracking-wider">Aman</span>
                           )}
                         </div>
-                      ))}
-                    </div>
-                    <form onSubmit={(e) => {
-                      e.preventDefault();
-                      const input = (e.target as any).walletName;
-                      if (input.value.trim()) {
-                        handleAddWallet(input.value.trim());
-                        input.value = '';
-                      }
-                    }} className="flex gap-2 max-w-sm">
-                      <input name="walletName" placeholder="Nama dompet baru..." className="flex-1 bg-slate-50 px-4 py-3 rounded-xl border-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800" />
-                      <button type="submit" className="px-6 bg-slate-900 text-white rounded-xl hover:bg-slate-800 shadow-md transition-all font-bold text-xs uppercase">
+                        <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden relative">
+                          <div 
+                            className={cn("h-4 rounded-full transition-all duration-500", globalBudget === 0 ? "bg-slate-200" : isOverLimit ? "bg-rose-500" : isNearLimit ? "bg-amber-400" : "bg-emerald-400")} 
+                            style={{ width: `${globalBudget === 0 ? 0 : validPercentage}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex items-center justify-between text-xs mt-1">
+                          <span className="text-slate-500 font-bold tracking-tight">Rp {globalSpent.toLocaleString('id-ID')}</span>
+                          <span className="text-slate-400 font-black tracking-tight">/ Rp {globalBudget.toLocaleString('id-ID')}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="pt-4 border-t border-slate-100">
+                    <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
+                       Budget Tiap Kategori
+                    </h4>
+                    {budgets.length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {budgets.map((b) => {
+                          const now = new Date();
+                          const spent = transactions
+                            .filter(t => t.type === 'expense' && t.category === b.categoryId && t.date?.toDate)
+                            .filter(t => {
+                              const tDate = t.date.toDate();
+                              return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+                            })
+                            .reduce((sum, t) => sum + t.amount, 0);
+
+                          const catPercentage = b.amount > 0 ? (spent / b.amount) * 100 : 0;
+                          const validCatPercentage = Math.min(catPercentage, 100);
+                          const isCatNearLimit = catPercentage >= 75 && catPercentage < 90;
+                          const isCatOverLimit = catPercentage >= 90;
+
+                          return (
+                            <div key={b.id} className="flex flex-col p-4 bg-slate-50 rounded-2xl group border border-slate-100 shadow-sm gap-2 relative">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold text-slate-700 text-xs truncate max-w-[120px]">{b.categoryId}</span>
+                                {isCatOverLimit ? (
+                                  <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded uppercase tracking-wider">Kritis</span>
+                                ) : isCatNearLimit ? (
+                                  <span className="text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded uppercase tracking-wider">Hampir</span>
+                                ) : (
+                                  <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded uppercase tracking-wider">Aman</span>
+                                )}
+                              </div>
+                              <div className="w-full bg-slate-200/50 rounded-full h-1.5 mb-1.5 overflow-hidden">
+                                <div 
+                                  className={cn("h-1.5 rounded-full transition-all duration-500", isCatOverLimit ? "bg-rose-500" : isCatNearLimit ? "bg-amber-400" : "bg-emerald-400")} 
+                                  style={{ width: `${validCatPercentage}%` }}
+                                ></div>
+                              </div>
+                              
+                              {editingBudgetId === b.id ? (
+                                <form 
+                                  onSubmit={(e) => { e.preventDefault(); handleUpdateBudget(b.id, editingBudgetAmount); }}
+                                  className="flex items-center gap-2 mt-1"
+                                >
+                                  <span className="text-[11px] font-bold text-slate-400">Rp</span>
+                                  <input 
+                                    autoFocus
+                                    type="number"
+                                    value={editingBudgetAmount || ''}
+                                    onChange={(e) => setEditingBudgetAmount(Number(e.target.value))}
+                                    className="flex-1 bg-white px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-1 focus:ring-indigo-500 text-[11px] font-bold text-slate-800 shadow-sm"
+                                  />
+                                  <button type="submit" className="text-emerald-500 hover:text-emerald-600">
+                                    <Check className="w-4 h-4" />
+                                  </button>
+                                  <button type="button" onClick={() => setEditingBudgetId(null)} className="text-slate-400 hover:text-slate-500">
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </form>
+                              ) : (
+                                <div className="flex items-center justify-between text-[11px]">
+                                   <div className="flex items-baseline gap-1">
+                                     <span className="text-slate-500 font-bold">Rp{spent.toLocaleString('id-ID')}</span>
+                                     <span className="text-slate-400 font-medium">/ Rp{b.amount.toLocaleString('id-ID')}</span>
+                                   </div>
+                                   <div className="flex items-center opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all ml-2 gap-1 bg-white px-1 py-1 rounded-md shadow-sm border border-slate-100 absolute bottom-3 right-3">
+                                     <button 
+                                        onClick={() => {
+                                          setEditingBudgetId(b.id);
+                                          setEditingBudgetAmount(b.amount);
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                     </button>
+                                     <button 
+                                        onClick={() => deleteBudget(b.id)}
+                                        className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                     </button>
+                                   </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    <form onSubmit={handleAddBudget} className="flex flex-col sm:flex-row gap-2 mt-4">
+                        <select 
+                          value={editingBudgetCategory} 
+                          onChange={(e) => setEditingBudgetCategory(e.target.value)}
+                          className="bg-slate-50 px-4 py-3 rounded-2xl border-none text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="">Pilih Kategori...</option>
+                          {[...DEFAULT_EXPENSE_CATEGORIES, ...customCategories.filter(c => c.type === 'expense').map(c => c.name)].filter(c => !budgets.find(b => b.categoryId === c)).map((cat) => (
+                              <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                        <div className="flex-1 relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">Rp</span>
+                          <input 
+                            type="number"
+                            value={editingBudgetAmount || ''}
+                            onChange={(e) => setEditingBudgetAmount(Number(e.target.value))}
+                            placeholder="Nominal budget..." 
+                            className="w-full bg-slate-50 pl-10 pr-4 py-3 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800" 
+                          />
+                        </div>
+                      <button type="submit" className="px-6 py-3 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 shadow-md transition-all font-bold text-xs uppercase shrink-0">
                         Tambah
                       </button>
                     </form>
                   </div>
-                )}
+                </div>
               </motion.div>
             </div>
           )}

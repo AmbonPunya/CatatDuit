@@ -40,7 +40,7 @@ async function startServer() {
       const ai = getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",
-        contents: `Ekstrak data transaksi keuangan (bisa berupa pemasukan atau pengeluaran) dari kalimat berikut dalam bahasa Indonesia: "${text}"`,
+        contents: `Ekstrak data transaksi keuangan (bisa berupa pemasukan, pengeluaran, atau transfer antar dompet) dari kalimat berikut dalam bahasa Indonesia: "${text}"`,
         config: {
           systemInstruction: "Anda adalah asisten pencatatan keuangan pribadi pintar dalam bahasa Indonesia. Ekstrak informasi dari teks pengguna dengan tepat ke dalam skema JSON yang diminta.",
           responseMimeType: "application/json",
@@ -53,23 +53,31 @@ async function startServer() {
               },
               description: {
                 type: Type.STRING,
-                description: "Keterangan singkat pengeluaran (misal: Katsu).",
+                description: "Keterangan singkat transaksi (misal: Katsu, atau Tarik Tunai).",
               },
               category: {
                 type: Type.STRING,
-                description: "Kategori pengeluaran atau pemasukan. Pilih salah satu: Makanan, Transportasi, Kebutuhan Pokok, Cicilan, Hiburan, Kesehatan, Pendidikan, Gaji, Bonus, Investasi, Lainnya.",
+                description: "Kategori transaksi. Untuk expense/income pilih: Makanan, Transportasi, dsb. Untuk transfer antar dompet, gunakan 'Transfer'.",
               },
               type: {
                 type: Type.STRING,
-                enum: ["expense", "income"],
-                description: "Jenis transaksi. 'expense' untuk pengeluaran, 'income' untuk pemasukan.",
+                enum: ["expense", "income", "transfer"],
+                description: "Jenis transaksi. 'expense' untuk pengeluaran, 'income' untuk pemasukan, 'transfer' untuk perpindahan dana antar dompet milik pengguna.",
               },
               wallet: {
                 type: Type.STRING,
-                description: "Sumber dana atau dompet (misal: Tunai, GOPAY, OVO, Bank, M-Banking, Cash). Jika tidak disebutkan, gunakan 'Tunai'.",
+                description: "Dompet yang digunakan (untuk expense/income). Jika tidak disebutkan, gunakan 'Tunai'.",
+              },
+              source_wallet: {
+                type: Type.STRING,
+                description: "Dompet ASAL untuk tipe 'transfer' (uang diambil dari mana). Gunakan nama dompet seperti 'Tunai', 'Transfer Bank', 'GOPAY', dll.",
+              },
+              destination_wallet: {
+                type: Type.STRING,
+                description: "Dompet TUJUAN untuk tipe 'transfer' (uang dipindah ke mana). Gunakan nama dompet umum.",
               },
             },
-            required: ["amount", "description", "category", "type", "wallet"],
+            required: ["amount", "description", "category", "type"],
           },
         },
       });
