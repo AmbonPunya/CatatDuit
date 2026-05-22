@@ -7,10 +7,14 @@ import {
   signOut, 
   collection, 
   addDoc, 
+  updateDoc,
+  deleteDoc,
+  doc,
   query, 
   where, 
   orderBy, 
   onSnapshot,
+  getDocs,
   Timestamp,
   setAccessToken,
   getAccessToken
@@ -100,10 +104,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { 
-  setDoc, 
-  deleteDoc, 
-  doc, 
-  updateDoc 
+  setDoc
 } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -141,6 +142,7 @@ export default function App() {
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [wallets, setWallets] = useState<WalletType[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [payday, setPayday] = useState<number>(1);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
@@ -159,7 +161,7 @@ export default function App() {
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showCategoryBudgets, setShowCategoryBudgets] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'categories'>('categories');
+  const [settingsTab, setSettingsTab] = useState<'income_categories' | 'expense_categories' | 'general'>('general');
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editingCategoryValue, setEditingCategoryValue] = useState('');
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
@@ -306,7 +308,24 @@ export default function App() {
       handleFirestoreError(error, OperationType.LIST, 'budgets');
     });
 
-    return () => { ut(); uc(); uw(); ub(); };
+    // Settings query
+    const sq = query(
+      collection(db, 'settings'),
+      where('userId', '==', user.uid)
+    );
+
+    const us = onSnapshot(sq, (snapshot) => {
+      if (!snapshot.empty) {
+        const data = snapshot.docs[0].data();
+        if (data.payday) setPayday(data.payday);
+      } else {
+        setPayday(1); // default
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'settings');
+    });
+
+    return () => { ut(); uc(); uw(); ub(); us(); };
   }, [user]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -504,6 +523,23 @@ export default function App() {
       setEditingCategoryId(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  };
+
+  const handleSavePayday = async (newPayday: number) => {
+    if (!user) return;
+    try {
+      const sq = query(collection(db, 'settings'), where('userId', '==', user.uid));
+      const snapshot = await getDocs(sq);
+      if (!snapshot.empty) {
+        const docId = snapshot.docs[0].id;
+        await updateDoc(doc(db, 'settings', docId), { payday: newPayday });
+      } else {
+        await addDoc(collection(db, 'settings'), { userId: user.uid, payday: newPayday });
+      }
+      setPayday(newPayday);
+    } catch (error) {
+       console.error("Error saving payday:", error);
     }
   };
 
@@ -725,13 +761,44 @@ export default function App() {
     return true;
   });
 
-  // Chart Data (Filtered by type if needed, or by all expenses for pie chart)
-  const getPeriodDate = (period: 'week' | 'month' | 'year') => {
+  const isSameMonthPeriod = (date: Date) => {
     const now = new Date();
-    const start = new Date();
-    if (period === 'week') start.setDate(now.getDate() - now.getDay());
-    else if (period === 'month') start.setDate(1);
-    else if (period === 'year') start.setMonth(0, 1);
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (now.getDate() < payday) {
+      currentMonthStart.setMonth(currentMonthStart.getMonth() - 1);
+    }
+    const maxDaysInStartMonth = new Date(currentMonthStart.getFullYear(), currentMonthStart.getMonth() + 1, 0).getDate();
+    currentMonthStart.setDate(Math.min(payday, maxDaysInStartMonth));
+    currentMonthStart.setHours(0, 0, 0, 0);
+
+    const currentMonthEnd = new Date(currentMonthStart);
+    currentMonthEnd.setMonth(currentMonthEnd.getMonth() + 1);
+    const maxDaysInEndMonth = new Date(currentMonthEnd.getFullYear(), currentMonthEnd.getMonth() + 1, 0).getDate();
+    currentMonthEnd.setDate(Math.min(payday, maxDaysInEndMonth));
+    currentMonthEnd.setHours(0, 0, 0, 0);
+
+    return date >= currentMonthStart && date < currentMonthEnd;
+  };
+
+  // Chart Data (Filtered by type if needed, or by all expenses for pie chart)
+  const getPeriodStartDate = (period: 'week' | 'month' | 'year') => {
+    const now = new Date();
+    let start: Date;
+    if (period === 'week') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      start.setDate(now.getDate() - now.getDay());
+    }
+    else if (period === 'month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      if (now.getDate() < payday) start.setMonth(start.getMonth() - 1);
+      const maxDays = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+      start.setDate(Math.min(payday, maxDays));
+    }
+    else if (period === 'year') {
+      start = new Date(now.getFullYear(), 0, 1);
+    } else {
+      start = new Date();
+    }
     start.setHours(0, 0, 0, 0);
     return start;
   };
@@ -739,7 +806,10 @@ export default function App() {
   const periodFilteredTransactions = transactions.filter(t => {
     if (!t.date?.toDate) return false;
     const date = t.date.toDate();
-    return date >= getPeriodDate(chartPeriod);
+    if (chartPeriod === 'month') {
+      return isSameMonthPeriod(date);
+    }
+    return date >= getPeriodStartDate(chartPeriod);
   });
 
   const comparisonData = [
@@ -773,9 +843,9 @@ export default function App() {
 
   const expenseRatio = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : (totalExpense > 0 ? 100 : 0);
 
-  const expenseCategories = ['Transfer', ...DEFAULT_EXPENSE_CATEGORIES, ...customCategories.filter(c => c.type === 'expense').map(c => c.name)];
-  const incomeCategories = ['Transfer', ...DEFAULT_INCOME_CATEGORIES, ...customCategories.filter(c => c.type === 'income').map(c => c.name)];
-  const walletOptions = [...DEFAULT_WALLETS, ...wallets.map(w => w.name)];
+  const expenseCategories = Array.from(new Set(['Transfer', ...DEFAULT_EXPENSE_CATEGORIES, ...customCategories.filter(c => c.type === 'expense').map(c => c.name)]));
+  const incomeCategories = Array.from(new Set(['Transfer', ...DEFAULT_INCOME_CATEGORIES, ...customCategories.filter(c => c.type === 'income').map(c => c.name)]));
+  const walletOptions = Array.from(new Set([...DEFAULT_WALLETS, ...wallets.map(w => w.name)]));
 
   if (loading) {
     return (
@@ -911,7 +981,7 @@ export default function App() {
               <p className="text-xs font-bold text-slate-800 tracking-tight">{user.displayName || user.email}</p>
             </div>
             <button 
-              onClick={() => setShowSettings(true)}
+              onClick={() => { setSettingsTab('general'); setShowSettings(true); }}
               className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all focus:outline-none"
               title="Pengaturan"
             >
@@ -930,42 +1000,42 @@ export default function App() {
         <main className="flex-1 flex flex-col p-6 md:p-10 gap-8 bg-white transition-colors">
           {/* Quick Stats */}
           <section className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-100 transition-all">
+            <button onClick={() => { setSettingsTab('income_categories'); setShowSettings(true); }} className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-emerald-200 transition-all text-left active:scale-95">
               <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
                 <ArrowDownLeft className="w-5 h-5" />
               </div>
-              <div>
+              <div className="overflow-hidden flex-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Pemasukan</p>
-                <p className="text-sm font-black text-slate-800 tracking-tight leading-tight">Rp {totalIncome.toLocaleString('id-ID')}</p>
+                <p className="text-sm font-black text-slate-800 tracking-tight leading-tight truncate">Rp {totalIncome.toLocaleString('id-ID')}</p>
               </div>
-            </div>
-            <div className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-100 transition-all">
+            </button>
+            <button onClick={() => { setSettingsTab('expense_categories'); setShowSettings(true); }} className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-rose-200 transition-all text-left active:scale-95">
               <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-600 shrink-0">
                 <ArrowUpRight className="w-5 h-5" />
               </div>
-              <div>
+              <div className="overflow-hidden flex-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Pengeluaran</p>
-                <p className="text-sm font-black text-slate-800 tracking-tight leading-tight">Rp {totalExpense.toLocaleString('id-ID')}</p>
+                <p className="text-sm font-black text-slate-800 tracking-tight leading-tight truncate">Rp {totalExpense.toLocaleString('id-ID')}</p>
               </div>
-            </div>
-            <div className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-100 transition-all">
+            </button>
+            <button onClick={() => setShowWalletModal(true)} className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-200 transition-all text-left active:scale-95">
               <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
                 <WalletIcon className="w-5 h-5" />
               </div>
-              <div>
+              <div className="overflow-hidden flex-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Total Saldo</p>
-                <p className={cn("text-sm font-black tracking-tight leading-tight", balance >= 0 ? "text-slate-800" : "text-rose-600")}>
+                <p className={cn("text-sm font-black tracking-tight leading-tight truncate", balance >= 0 ? "text-slate-800" : "text-rose-600")}>
                   Rp {balance.toLocaleString('id-ID')}
                 </p>
               </div>
-            </div>
+            </button>
           </section>
 
-          {/* Anggaran & Dompet Cards */}
-          <section className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Anggaran Card */}
+          <section className="w-full">
             <button 
               onClick={() => setShowBudgetModal(true)}
-              className="bg-white border border-slate-200 shadow-sm rounded-[2rem] overflow-hidden hover:border-indigo-200 hover:shadow-md transition-all text-left p-5 md:p-6 flex flex-col justify-between h-[150px] group"
+              className="w-full bg-white border border-slate-200 shadow-sm rounded-[2rem] overflow-hidden hover:border-indigo-200 hover:shadow-md transition-all text-left p-5 md:p-6 flex flex-col justify-between h-[150px] group"
             >
               <div className="flex justify-between items-start w-full">
                 <div>
@@ -984,7 +1054,7 @@ export default function App() {
                   .filter(t => t.type === 'expense' && t.date?.toDate)
                   .filter(t => {
                     const tDate = t.date.toDate();
-                    return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+                    return isSameMonthPeriod(tDate);
                   })
                   .filter(t => budgets.some(b => b.categoryId === t.category))
                   .reduce((sum, t) => sum + t.amount, 0);
@@ -1001,25 +1071,6 @@ export default function App() {
                   </div>
                 );
               })()}
-            </button>
-
-            <button 
-              onClick={() => setShowWalletModal(true)}
-              className="bg-white border border-slate-200 shadow-sm rounded-[2rem] overflow-hidden hover:border-emerald-200 hover:shadow-md transition-all text-left p-5 md:p-6 flex flex-col justify-between h-[150px] group"
-            >
-              <div className="flex justify-between items-start w-full">
-                <div>
-                  <h3 className="text-lg font-black text-slate-800 tracking-tight leading-none mb-1 group-hover:text-emerald-600 transition-colors">Dompet</h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Kelola Sumber Dana</p>
-                </div>
-                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
-                  <WalletIcon className="w-5 h-5" />
-                </div>
-              </div>
-              
-              <div className="flex flex-col w-full mt-auto">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-1">{combinedWallets.length} Dompet Aktif</p>
-              </div>
             </button>
           </section>
 
@@ -1411,7 +1462,7 @@ export default function App() {
           <div className="flex items-center gap-6">
             <span className="hover:text-indigo-600 cursor-pointer transition-colors">Panduan</span>
             <button onClick={exportToExcel} className="hover:text-indigo-600 cursor-pointer transition-colors bg-transparent border-none p-0 uppercase font-bold tracking-widest">Ekspor</button>
-            <button onClick={() => setShowSettings(true)} className="hover:text-indigo-600 cursor-pointer transition-colors bg-transparent border-none p-0 uppercase font-bold tracking-widest">Pengaturan</button>
+            <button onClick={() => { setSettingsTab('general'); setShowSettings(true); }} className="hover:text-indigo-600 cursor-pointer transition-colors bg-transparent border-none p-0 uppercase font-bold tracking-widest">Pengaturan</button>
           </div>
         </footer>
 
@@ -1571,15 +1622,19 @@ export default function App() {
                 exit={{ opacity: 0, y: 20 }}
                 className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-4 md:border-8 border-white relative max-h-[90vh] overflow-y-auto"
               >
-                <div className="flex justify-between items-center mb-10">
-                  <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Pengaturan Kategori</h3>
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+                    {settingsTab === 'expense_categories' ? 'Kategori Pengeluaran' :
+                     settingsTab === 'income_categories' ? 'Kategori Pemasukan' :
+                     'Pengaturan Aplikasi'}
+                  </h3>
                   <button onClick={() => setShowSettings(false)} className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-rose-600 transition-all">
                     <X className="w-6 h-6" />
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                    <div className="space-y-6">
+                {settingsTab === 'expense_categories' && (
+                  <div className="space-y-6">
                       <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2">
                         <ArrowUpRight className="w-4 h-4" /> Pengeluaran
                       </h4>
@@ -1651,7 +1706,9 @@ export default function App() {
                         </button>
                       </form>
                     </div>
+                )}
 
+                {settingsTab === 'income_categories' && (
                     <div className="space-y-6">
                       <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] flex items-center gap-2">
                         <ArrowDownLeft className="w-4 h-4" /> Pemasukan
@@ -1672,7 +1729,7 @@ export default function App() {
                                   type="text"
                                   value={editingCategoryValue}
                                   onChange={(e) => setEditingCategoryValue(e.target.value)}
-                                  className="flex-1 bg-slate-50 px-3 py-1 rounded-lg border-none focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-slate-800"
+                                  className="flex-1 bg-slate-50 px-3 py-1 rounded-lg border-none focus:ring-1 focus:ring-emerald-500 text-sm font-bold text-slate-800"
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') handleUpdateCategory(cat.id, editingCategoryValue);
                                     if (e.key === 'Escape') setEditingCategoryId(null);
@@ -1694,7 +1751,7 @@ export default function App() {
                                       setEditingCategoryId(cat.id);
                                       setEditingCategoryValue(cat.name);
                                     }}
-                                    className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
+                                    className="p-1.5 text-slate-400 hover:text-emerald-600 transition-colors"
                                   >
                                     <Pencil className="w-3.5 h-3.5" />
                                   </button>
@@ -1718,13 +1775,44 @@ export default function App() {
                           input.value = '';
                         }
                       }} className="flex gap-2">
-                        <input name="category" placeholder="Kategori baru..." className="flex-1 bg-slate-50 px-4 py-3 rounded-xl border-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800" />
+                        <input name="category" placeholder="Kategori pemasukan baru..." className="flex-1 bg-slate-50 px-4 py-3 rounded-xl border-none focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-slate-800" />
                         <button type="submit" className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-100 transition-all">
                           <Plus className="w-4 h-4" />
                         </button>
                       </form>
                     </div>
+                )}
+
+                {settingsTab === 'general' && (
+                  <div className="space-y-6">
+                    <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
+                      Siklus Bulanan
+                    </h4>
+                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 flex flex-col gap-4">
+                      <p className="text-sm font-medium text-slate-600">
+                        Atur tanggal dimulainya perhitungan bulan (misal tanggal gajian).
+                        Perhitungan "bulan ini" akan dimulai dari tanggal tersebut.
+                      </p>
+                      
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mt-2">
+                        <div className="flex-1 w-full relative">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 absolute -top-5">Tanggal Awal / Gajian</label>
+                          <input 
+                            type="number"
+                            min="1"
+                            max="31"
+                            value={payday}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 1;
+                              if (val >= 1 && val <= 31) handleSavePayday(val);
+                            }}
+                            className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                )}
               </motion.div>
             </div>
           )}
@@ -1896,7 +1984,7 @@ export default function App() {
                       .filter(t => t.type === 'expense' && t.date?.toDate)
                       .filter(t => {
                         const tDate = t.date.toDate();
-                        return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+                        return isSameMonthPeriod(tDate);
                       })
                       .filter(t => budgets.some(b => b.categoryId === t.category))
                       .reduce((sum, t) => sum + t.amount, 0);
@@ -1946,7 +2034,7 @@ export default function App() {
                             .filter(t => t.type === 'expense' && t.category === b.categoryId && t.date?.toDate)
                             .filter(t => {
                               const tDate = t.date.toDate();
-                              return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+                              return isSameMonthPeriod(tDate);
                             })
                             .reduce((sum, t) => sum + t.amount, 0);
 
@@ -2032,7 +2120,7 @@ export default function App() {
                           className="bg-slate-50 px-4 py-3 rounded-2xl border-none text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
                         >
                           <option value="">Pilih Kategori...</option>
-                          {[...DEFAULT_EXPENSE_CATEGORIES, ...customCategories.filter(c => c.type === 'expense').map(c => c.name)].filter(c => !budgets.find(b => b.categoryId === c)).map((cat) => (
+                          {Array.from(new Set([...DEFAULT_EXPENSE_CATEGORIES, ...customCategories.filter(c => c.type === 'expense').map(c => c.name)])).filter(c => !budgets.find(b => b.categoryId === c)).map((cat) => (
                               <option key={cat} value={cat}>{cat}</option>
                           ))}
                         </select>

@@ -32,4 +32,10 @@ export interface Budget {
   userId: string;
 }
 
+export interface UserSettings {
+  id?: string;
+  payday: number;
+  userId: string;
+}
+
 export type Category = string;

@@ -6,12 +6,14 @@ import {
   collection, 
   addDoc, 
   setDoc,
+  updateDoc,
   deleteDoc,
   doc,
   query, 
   where, 
   orderBy, 
-  onSnapshot, 
+  onSnapshot,
+  getDocs,
   Timestamp 
 } from 'firebase/firestore';
 
@@ -47,12 +49,14 @@ export {
   collection, 
   addDoc, 
   setDoc,
+  updateDoc,
   deleteDoc,
   doc,
   query, 
   where, 
   orderBy, 
-  onSnapshot, 
+  onSnapshot,
+  getDocs,
   signInWithPopup, 
   signOut,
   Timestamp 
