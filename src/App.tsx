@@ -1010,35 +1010,44 @@ export default function App() {
 
         <main className="flex-1 flex flex-col p-6 md:p-10 gap-8 bg-white transition-colors">
           {/* Quick Stats */}
-          <section className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <button onClick={() => { setSettingsTab('income_categories'); setShowSettings(true); }} className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-emerald-200 transition-all text-left active:scale-95">
-              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
-                <ArrowDownLeft className="w-5 h-5" />
+          <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <button onClick={() => { setSettingsTab('income_categories'); setShowSettings(true); }} className="bg-white h-[68px] px-4 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between gap-3 group hover:border-emerald-200 hover:bg-emerald-50/5 transition-all text-left active:scale-98">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-9 h-9 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 shrink-0 group-hover:scale-105 transition-transform">
+                  <ArrowDownLeft className="w-4.5 h-4.5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider leading-none mb-1">Pemasukan</p>
+                  <p className="text-xs sm:text-sm font-black text-slate-800 tracking-tight leading-none truncate">Rp {totalIncome.toLocaleString('id-ID')}</p>
+                </div>
               </div>
-              <div className="overflow-hidden flex-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Pemasukan</p>
-                <p className="text-sm font-black text-slate-800 tracking-tight leading-tight truncate">Rp {totalIncome.toLocaleString('id-ID')}</p>
-              </div>
+              <span className="text-[8px] sm:text-[9px] text-slate-400/80 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all uppercase tracking-wider font-extrabold whitespace-nowrap shrink-0">Detail →</span>
             </button>
-            <button onClick={() => { setSettingsTab('expense_categories'); setShowSettings(true); }} className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-rose-200 transition-all text-left active:scale-95">
-              <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-600 shrink-0">
-                <ArrowUpRight className="w-5 h-5" />
+            <button onClick={() => { setSettingsTab('expense_categories'); setShowSettings(true); }} className="bg-white h-[68px] px-4 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between gap-3 group hover:border-rose-200 hover:bg-rose-50/5 transition-all text-left active:scale-98">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-9 h-9 bg-rose-50 rounded-lg flex items-center justify-center text-rose-600 shrink-0 group-hover:scale-105 transition-transform">
+                  <ArrowUpRight className="w-4.5 h-4.5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider leading-none mb-1">Pengeluaran</p>
+                  <p className="text-xs sm:text-sm font-black text-slate-800 tracking-tight leading-none truncate">Rp {totalExpense.toLocaleString('id-ID')}</p>
+                </div>
               </div>
-              <div className="overflow-hidden flex-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Pengeluaran</p>
-                <p className="text-sm font-black text-slate-800 tracking-tight leading-tight truncate">Rp {totalExpense.toLocaleString('id-ID')}</p>
-              </div>
+              <span className="text-[8px] sm:text-[9px] text-slate-400/80 group-hover:text-rose-600 group-hover:translate-x-0.5 transition-all uppercase tracking-wider font-extrabold whitespace-nowrap shrink-0">Detail →</span>
             </button>
-            <button onClick={() => setShowWalletModal(true)} className="bg-white h-[60px] px-6 rounded-[10px] border border-slate-100 shadow-sm flex items-center gap-4 group hover:border-indigo-200 transition-all text-left active:scale-95">
-              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
-                <WalletIcon className="w-5 h-5" />
+            <button onClick={() => setShowWalletModal(true)} className="bg-white h-[68px] px-4 rounded-xl border border-slate-200/80 shadow-sm flex items-center justify-between gap-3 group hover:border-indigo-200 hover:bg-indigo-50/5 transition-all text-left active:scale-98">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-9 h-9 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600 shrink-0 group-hover:scale-105 transition-transform">
+                  <WalletIcon className="w-4.5 h-4.5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider leading-none mb-1">Total Saldo</p>
+                  <p className={cn("text-xs sm:text-sm font-black tracking-tight leading-none truncate", balance >= 0 ? "text-slate-800" : "text-rose-600")}>
+                    Rp {balance.toLocaleString('id-ID')}
+                  </p>
+                </div>
               </div>
-              <div className="overflow-hidden flex-1">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Total Saldo</p>
-                <p className={cn("text-sm font-black tracking-tight leading-tight truncate", balance >= 0 ? "text-slate-800" : "text-rose-600")}>
-                  Rp {balance.toLocaleString('id-ID')}
-                </p>
-              </div>
+              <span className="text-[8px] sm:text-[9px] text-slate-400/80 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all uppercase tracking-wider font-extrabold whitespace-nowrap shrink-0">Detail →</span>
             </button>
           </section>
 
