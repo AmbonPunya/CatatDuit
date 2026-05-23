@@ -168,25 +168,6 @@ export function FinancialStatus({
         </div>
       </div>
 
-      {/* Tips Card */}
-      <div className="bg-indigo-600 rounded-[2rem] p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden group">
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingDown className="w-5 h-5 text-indigo-300" />
-            <p className="text-indigo-200 text-[10px] font-black uppercase tracking-[0.2em]">Tip Penghematan</p>
-          </div>
-          <p className="text-sm font-medium leading-relaxed opacity-95">
-            {totalExpense > totalIncome * 0.8 
-              ? "Pengeluaran harianmu hampir menyamai pemasukan. Ayo perketat anggaran!" 
-              : balance > 0 
-              ? "Saldo surplus! Pertimbangkan untuk menambah dana investasi atau tabungan darurat."
-              : "Wah, pengaturan keuanganmu sejauh ini sangat baik! Pertahankan disiplin ini."}
-          </p>
-        </div>
-        <div className="absolute -right-8 -bottom-8 opacity-10 group-hover:scale-125 transition-transform duration-700 ease-out">
-          <WalletIcon className="w-32 h-32" />
-        </div>
-      </div>
     </div>
   );
 }

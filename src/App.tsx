@@ -37,6 +37,7 @@ import {
 import { QuickStats } from './components/QuickStats';
 import { BudgetOverview } from './components/BudgetOverview';
 import { AIForm } from './components/AIForm';
+import { AIInsights } from './components/AIInsights';
 import { TransactionHistory } from './components/TransactionHistory';
 import { FinancialStatus } from './components/FinancialStatus';
 import { 
@@ -991,6 +992,9 @@ export default function App() {
             onExportToExcel={exportToExcel}
             onExportToGoogleSheets={exportToGoogleSheets}
           />
+
+          {/* AI Insights Panel */}
+          <AIInsights transactions={transactions} />
 
           <section className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* History Table */}
