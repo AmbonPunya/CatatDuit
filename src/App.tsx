@@ -843,9 +843,20 @@ export default function App() {
 
   const expenseRatio = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : (totalExpense > 0 ? 100 : 0);
 
-  const expenseCategories = Array.from(new Set(['Transfer', ...DEFAULT_EXPENSE_CATEGORIES, ...customCategories.filter(c => c.type === 'expense').map(c => c.name)]));
-  const incomeCategories = Array.from(new Set(['Transfer', ...DEFAULT_INCOME_CATEGORIES, ...customCategories.filter(c => c.type === 'income').map(c => c.name)]));
-  const walletOptions = Array.from(new Set([...DEFAULT_WALLETS, ...wallets.map(w => w.name)]));
+  const expenseCategories = Array.from(new Set([
+    'Transfer', 
+    ...DEFAULT_EXPENSE_CATEGORIES, 
+    ...customCategories.filter(c => c.type === 'expense').map(c => c.name?.trim())
+  ].filter(Boolean)));
+  const incomeCategories = Array.from(new Set([
+    'Transfer', 
+    ...DEFAULT_INCOME_CATEGORIES, 
+    ...customCategories.filter(c => c.type === 'income').map(c => c.name?.trim())
+  ].filter(Boolean)));
+  const walletOptions = Array.from(new Set([
+    ...DEFAULT_WALLETS, 
+    ...wallets.map(w => w.name?.trim())
+  ].filter(Boolean)));
 
   if (loading) {
     return (
@@ -1152,50 +1163,56 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Compact Filters Integrated */}
-                <div className="flex flex-col md:flex-row gap-3 items-center">
-                  <div className="flex-1 relative w-full">
-                    <input 
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Cari deskripsi, kategori, dompet..."
-                      className="w-full h-[30px] pl-9 pr-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-xs font-semibold text-slate-800 placeholder:text-slate-300 shadow-sm"
-                    />
-                    <Search className="w-3.5 h-3.5 text-slate-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  </div>
-                  <div className="flex items-center gap-2 w-full md:w-auto">
-                    <div className="relative flex-1 md:w-auto">
-                      <input 
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[9px] font-bold uppercase tracking-tight text-slate-800 shadow-sm -ml-[5px]"
-                      />
-                      <Calendar className="w-3 h-3 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2 -ml-[5px]" />
-                    </div>
-                    <span className="text-slate-300 font-bold -ml-[2px]">-</span>
-                    <div className="relative flex-1 md:w-auto">
-                      <input 
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[9px] font-bold uppercase tracking-tight text-slate-800 shadow-sm"
-                      />
-                      <Calendar className="w-3 h-3 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2" />
-                    </div>
-                    {(searchQuery || startDate || endDate) && (
-                      <button 
-                        onClick={() => { setSearchQuery(''); setStartDate(''); setEndDate(''); }}
-                        className="p-2.5 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition-all border border-rose-100 shadow-sm"
-                        title="Reset Filter"
-                      >
-                        <Filter className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
+ {/* Compact Filters Integrated */}
+<div className="flex flex-col md:flex-row gap-3 items-center justify-center w-full">
+  {/* Kolom Pencarian Teks */}
+  <div className="relative w-full flex-1">
+    <input 
+      type="text"
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      placeholder="Cari deskripsi, kategori, dompet..."
+      className="w-full h-[30px] pl-9 pr-4 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all text-xs font-semibold text-slate-800 placeholder:text-slate-300 shadow-sm"
+    />
+    <Search className="w-3.5 h-3.5 text-slate-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
+  </div>
+
+  {/* Grup Filter Tanggal & Reset */}
+  <div className="flex flex-wrap items-center justify-center gap-2 w-full md:w-auto">
+    <div className="relative">
+      <input 
+        type="date"
+        value={startDate}
+        onChange={(e) => setStartDate(e.target.value)}
+        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[9px] font-bold uppercase tracking-tight text-slate-800 shadow-sm"
+      />
+      <Calendar className="w-3 h-3 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2" />
+    </div>
+    
+    <span className="text-slate-300 font-bold">-</span>
+    
+    <div className="relative">
+      <input 
+        type="date"
+        value={endDate}
+        onChange={(e) => setEndDate(e.target.value)}
+        className="w-[120px] h-[30px] pl-[32px] bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-[9px] font-bold uppercase tracking-tight text-slate-800 shadow-sm"
+      />
+      <Calendar className="w-3 h-3 text-slate-300 absolute left-3 top-1/2 -translate-y-1/2" />
+    </div>
+    
+    {(searchQuery || startDate || endDate) && (
+      <button 
+        onClick={() => { setSearchQuery(''); setStartDate(''); setEndDate(''); }}
+        className="p-1.5 h-[30px] w-[30px] rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition-all border border-rose-100 shadow-sm flex items-center justify-center flex-shrink-0"
+        title="Reset Filter"
+      >
+        <Filter className="w-3.5 h-3.5" />
+      </button>
+    )}
+  </div>
+</div>
                 </div>
-              </div>
               <div className="flex-1 overflow-auto max-h-[600px]">
                 <div className="flex flex-col w-full">
   {filteredTransactions.length === 0 ? (
@@ -1410,8 +1427,8 @@ export default function App() {
                 
                 {/* Legend Grid */}
                 <div className="w-full mt-8 grid grid-cols-2 gap-3">
-                  {chartData.map((data) => (
-                    <div key={data.name} className="flex items-center gap-2.5 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                  {chartData.map((data, idx) => (
+                    <div key={`legend-${data.name}-${idx}`} className="flex items-center gap-2.5 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
                       <div 
                         className="w-2.5 h-2.5 rounded-full shrink-0" 
                         style={{ 
@@ -1620,9 +1637,10 @@ export default function App() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-4 md:border-8 border-white relative max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-[20px] w-full max-w-2xl shadow-2xl border border-slate-200 relative max-h-[90vh] flex flex-col overflow-hidden"
+                style={{ borderStyle: 'outset' }}
               >
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex justify-between items-center px-6 md:px-10 pt-6 md:pt-10 pb-4">
                   <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
                     {settingsTab === 'expense_categories' ? 'Kategori Pengeluaran' :
                      settingsTab === 'income_categories' ? 'Kategori Pemasukan' :
@@ -1632,6 +1650,8 @@ export default function App() {
                     <X className="w-6 h-6" />
                   </button>
                 </div>
+
+                <div className="flex-1 overflow-y-auto px-6 md:px-10 pb-6 md:pb-10 space-y-6">
 
                 {settingsTab === 'expense_categories' && (
                   <div className="space-y-6">
@@ -1645,8 +1665,8 @@ export default function App() {
                             <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Bawaan</span>
                           </div>
                         ))}
-                        {customCategories.filter(c => c.type === 'expense').map((cat) => (
-                          <div key={cat.id} className="flex items-center justify-between p-4 bg-white rounded-2xl group border border-slate-100 shadow-sm">
+                        {customCategories.filter(c => c.type === 'expense').map((cat, idx) => (
+                          <div key={`cust-exp-${cat.id || idx}-${idx}`} className="flex items-center justify-between p-4 bg-white rounded-2xl group border border-slate-100 shadow-sm">
                             {editingCategoryId === cat.id ? (
                               <div className="flex-1 flex gap-2">
                                 <input 
@@ -1720,8 +1740,8 @@ export default function App() {
                             <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Bawaan</span>
                           </div>
                         ))}
-                        {customCategories.filter(c => c.type === 'income').map((cat) => (
-                          <div key={cat.id} className="flex items-center justify-between p-4 bg-white rounded-2xl group border border-slate-100 shadow-sm">
+                        {customCategories.filter(c => c.type === 'income').map((cat, idx) => (
+                          <div key={`cust-inc-${cat.id || idx}-${idx}`} className="flex items-center justify-between p-4 bg-white rounded-2xl group border border-slate-100 shadow-sm">
                             {editingCategoryId === cat.id ? (
                               <div className="flex-1 flex gap-2">
                                 <input 
@@ -1813,6 +1833,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
+                </div>
               </motion.div>
             </div>
           )}
@@ -1823,20 +1844,21 @@ export default function App() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-4 md:border-8 border-white relative max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-[20px] w-full max-w-2xl shadow-2xl border border-slate-200 relative max-h-[90vh] flex flex-col overflow-hidden"
+                style={{ borderStyle: 'outset' }}
               >
-                <div className="flex justify-between items-center mb-10">
+                <div className="flex justify-between items-center px-6 md:px-10 pt-6 md:pt-10 pb-4">
                   <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Pengaturan Dompet</h3>
                   <button onClick={() => setShowWalletModal(false)} className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-rose-600 transition-all">
                     <X className="w-6 h-6" />
                   </button>
                 </div>
-                <div className="space-y-6">
+                <div className="flex-1 overflow-y-auto px-6 md:px-10 pb-6 md:pb-10 space-y-6">
                   <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2">
                     <WalletIcon className="w-4 h-4" /> Daftar Dompet / Sumber Dana
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-auto pr-2">
-                    {combinedWallets.map((w) => {
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {combinedWallets.map((w, idx) => {
                           const now = new Date();
                           const incomes = transactions
                             .filter(t => t.type === 'income' && (t.wallet === w.name || (!t.wallet && w.name === 'Tunai')) && t.date?.toDate)
@@ -1854,7 +1876,7 @@ export default function App() {
                           const currentBalance = (w.amount || 0) + incomes - expenses + transfersIn - transfersOut;
 
                           return (
-                            <div key={w.id} className="flex flex-col p-4 bg-slate-50 rounded-2xl group border border-slate-100 shadow-sm gap-2 relative">
+                            <div key={`wallet-${w.id || idx}-${idx}`} className="flex flex-col p-4 bg-slate-50 rounded-2xl group border border-slate-100 shadow-sm gap-2 relative">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="font-bold text-slate-700 text-xs truncate max-w-[120px]">{w.name}</span>
                                 {w.isDefault ? (
@@ -1967,16 +1989,17 @@ export default function App() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="bg-white rounded-[2rem] md:rounded-[2.5rem] w-full max-w-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-4 md:border-8 border-white relative max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-[20px] w-full max-w-2xl shadow-2xl border border-slate-200 relative max-h-[90vh] flex flex-col overflow-hidden"
+                style={{ borderStyle: 'outset' }}
               >
-                <div className="flex justify-between items-center mb-10">
+                <div className="flex justify-between items-center px-6 md:px-10 pt-6 md:pt-10 pb-4">
                   <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Pengaturan Anggaran</h3>
                   <button onClick={() => setShowBudgetModal(false)} className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:text-rose-600 transition-all">
                     <X className="w-6 h-6" />
                   </button>
                 </div>
                 
-                <div className="space-y-6">
+                <div className="flex-1 overflow-y-auto px-6 md:px-10 pb-6 md:pb-10 space-y-6">
                   {(() => {
                     const now = new Date();
                     const globalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
@@ -2028,7 +2051,7 @@ export default function App() {
                     </h4>
                     {budgets.length > 0 && (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {budgets.map((b) => {
+                        {budgets.map((b, idx) => {
                           const now = new Date();
                           const spent = transactions
                             .filter(t => t.type === 'expense' && t.category === b.categoryId && t.date?.toDate)
@@ -2044,7 +2067,7 @@ export default function App() {
                           const isCatOverLimit = catPercentage >= 90;
 
                           return (
-                            <div key={b.id} className="flex flex-col p-4 bg-slate-50 rounded-2xl group border border-slate-100 shadow-sm gap-2 relative">
+                            <div key={`budget-${b.id || idx}-${idx}`} className="flex flex-col p-4 bg-slate-50 rounded-2xl group border border-slate-100 shadow-sm gap-2 relative">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="font-bold text-slate-700 text-xs truncate max-w-[120px]">{b.categoryId}</span>
                                 {isCatOverLimit ? (
