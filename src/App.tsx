@@ -42,6 +42,7 @@ import { FinancialStatus } from './components/FinancialStatus';
 import { 
   DeleteConfirmModal, EditTransactionModal, SettingsModal, WalletModal, BudgetModal 
 } from './components/Modals';
+import { Onboarding } from './components/Onboarding';
 
 enum OperationType {
   CREATE = 'create',
@@ -99,6 +100,7 @@ export default function App() {
   const [editingWalletAmount, setEditingWalletAmount] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income'>('all');
   const [chartPeriod, setChartPeriod] = useState<'week' | 'month' | 'year'>('month');
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -158,6 +160,17 @@ export default function App() {
       clearTimeout(timeout);
     };
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      const completed = localStorage.getItem(`catatduit_onboarding_${user.uid}`);
+      if (!completed) {
+        setShowOnboarding(true);
+      }
+    } else {
+      setShowOnboarding(false);
+    }
+  }, [user]);
 
   // Listeners for data synchronization
   useEffect(() => {
@@ -1014,7 +1027,7 @@ export default function App() {
         <footer className="px-10 py-6 bg-slate-50/50 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-auto">
           <p>© 2026 CatatDuit AI Dashboard • Aktif</p>
           <div className="flex items-center gap-6">
-            <span className="hover:text-indigo-600 cursor-pointer transition-colors">Panduan</span>
+            <span onClick={() => setShowOnboarding(true)} className="hover:text-indigo-600 cursor-pointer transition-colors">Panduan</span>
             <button type="button" onClick={exportToExcel} className="hover:text-indigo-600 cursor-pointer transition-colors bg-transparent border-none p-0 uppercase font-bold tracking-widest">Ekspor</button>
             <button type="button" onClick={() => { setSettingsTab('general'); setShowSettings(true); }} className="hover:text-indigo-600 cursor-pointer transition-colors bg-transparent border-none p-0 uppercase font-bold tracking-widest">Pengaturan</button>
           </div>
@@ -1095,6 +1108,13 @@ export default function App() {
               onUpdateBudget={handleUpdateBudget}
               onDeleteBudget={deleteBudget}
               customCategories={customCategories}
+            />
+          )}
+
+          {showOnboarding && user && (
+            <Onboarding
+              userId={user.uid}
+              onClose={() => setShowOnboarding(false)}
             />
           )}
         </AnimatePresence>
