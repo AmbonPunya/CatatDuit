@@ -236,6 +236,21 @@ export function SettingsModal({
   onUpdateCategory,
   onDeleteCategory,
 }: SettingsModalProps) {
+  const [localPayday, setLocalPayday] = React.useState<string>(payday.toString());
+
+  React.useEffect(() => {
+    if (showSettings) {
+      setLocalPayday(payday.toString());
+    }
+  }, [payday, showSettings]);
+
+  const handleSavePaydayInput = () => {
+    const val = parseInt(localPayday, 10);
+    if (!isNaN(val) && val >= 1 && val <= 31) {
+      onSavePayday(val);
+    }
+  };
+
   if (!showSettings) return null;
 
   return (
@@ -430,21 +445,38 @@ export function SettingsModal({
                   Perhitungan "bulan ini" akan dimulai dari tanggal tersebut.
                 </p>
                 
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mt-2">
+                <div className="flex flex-col sm:flex-row items-end gap-4 mt-2">
                   <div className="flex-1 w-full relative">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 absolute -top-5">Tanggal Awal / Gajian</label>
                     <input 
-                      type="number"
-                      min="1"
-                      max="31"
-                      value={payday}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={localPayday}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value) || 1;
-                        if (val >= 1 && val <= 31) onSavePayday(val);
+                        const val = e.target.value;
+                        if (val === '' || /^[0-9]+$/.test(val)) {
+                          setLocalPayday(val);
+                        }
                       }}
+                      placeholder="Masukkan tanggal (1-31)"
                       className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800"
                     />
+                    {localPayday !== '' && (parseInt(localPayday, 10) < 1 || parseInt(localPayday, 10) > 31) && (
+                      <em className="text-rose-500 text-[10px] font-bold block mt-1 ml-1 absolute">
+                        Masukkan tanggal antara 1 sampai 31
+                      </em>
+                    )}
                   </div>
+                  
+                  <button 
+                    type="button"
+                    onClick={handleSavePaydayInput}
+                    disabled={localPayday === '' || parseInt(localPayday, 10) < 1 || parseInt(localPayday, 10) > 31}
+                    className="w-full sm:w-auto px-6 py-3 bg-indigo-600 disabled:bg-slate-300 text-white font-bold text-xs uppercase rounded-xl tracking-wider hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 disabled:shadow-none shrink-0"
+                  >
+                    Simpan
+                  </button>
                 </div>
               </div>
             </div>
@@ -658,9 +690,16 @@ interface BudgetModalProps {
   editingBudgetCategory: string;
   setEditingBudgetCategory: (cat: string) => void;
   onAddBudget: (e: React.FormEvent) => void;
-  onUpdateBudget: (id: string, amount: number) => void;
+  onUpdateBudget: (id: string, category: string, amount: number) => void;
   onDeleteBudget: (id: string) => void;
   customCategories: CustomCategory[];
+  onAddCategory: (name: string, type: 'expense' | 'income') => void;
+  onUpdateCategory: (id: string, name: string) => void;
+  onDeleteCategory: (id: string) => void;
+  editingCategoryId: string | null;
+  setEditingCategoryId: (id: string | null) => void;
+  editingCategoryValue: string;
+  setEditingCategoryValue: (val: string) => void;
 }
 
 export function BudgetModal({
@@ -679,8 +718,17 @@ export function BudgetModal({
   onUpdateBudget,
   onDeleteBudget,
   customCategories,
+  onAddCategory,
+  onUpdateCategory,
+  onDeleteCategory,
+  editingCategoryId,
+  setEditingCategoryId,
+  editingCategoryValue,
+  setEditingCategoryValue,
 }: BudgetModalProps) {
   if (!showBudgetModal) return null;
+
+  const [activeTab, setActiveTab] = React.useState<'budgets' | 'categories'>('budgets');
 
   const globalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
   const globalSpent = transactions
@@ -711,8 +759,11 @@ export function BudgetModal({
         className="bg-white rounded-[20px] w-full max-w-2xl shadow-2xl border border-slate-200 relative max-h-[90vh] flex flex-col overflow-hidden"
         style={{ borderStyle: 'outset' }}
       >
+        {/* Header containing title and Close button */}
         <div className="flex justify-between items-center px-6 md:px-10 pt-6 md:pt-10 pb-4">
-          <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Pengaturan Anggaran</h3>
+          <h3 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+            Pengaturan Anggaran
+          </h3>
           <button 
             type="button" 
             onClick={() => setShowBudgetModal(false)} 
@@ -721,154 +772,293 @@ export function BudgetModal({
             <X className="w-6 h-6" />
           </button>
         </div>
+
+        {/* Tab switch control */}
+        <div className="px-6 md:px-10 mb-4">
+          <div className="flex bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => setActiveTab('budgets')}
+              className={cn(
+                "flex-1 py-2 text-xs font-bold rounded-lg transition-all",
+                activeTab === 'budgets' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              Alokasi Anggaran
+            </button>
+            <button
+              onClick={() => setActiveTab('categories')}
+              className={cn(
+                "flex-1 py-2 text-xs font-bold rounded-lg transition-all",
+                activeTab === 'categories' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              Kelola Kategori
+            </button>
+          </div>
+        </div>
         
         <div className="flex-1 overflow-y-auto px-6 md:px-10 pb-6 md:pb-10 space-y-6">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-700 text-sm">Total Terserap (Kategori Beranggaran)</span>
-              {globalBudget === 0 ? (
-                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Belum diatur</span>
-              ) : isOverLimit ? (
-                <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-1 rounded-md uppercase tracking-wider">Kritis / Melebihi Batas</span>
-              ) : isNearLimit ? (
-                <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-md uppercase tracking-wider">Hampir Habis</span>
-              ) : (
-                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md uppercase tracking-wider">Aman</span>
-              )}
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden relative">
-              <div 
-                className={cn(
-                  "h-4 rounded-full transition-all duration-500", 
-                  globalBudget === 0 ? "bg-slate-200" : isOverLimit ? "bg-rose-500" : isNearLimit ? "bg-amber-400" : "bg-emerald-400"
-                )} 
-                style={{ width: `${globalBudget === 0 ? 0 : validPercentage}%` }}
-              ></div>
-            </div>
-            <div className="flex items-center justify-between text-xs mt-1">
-              <span className="text-slate-500 font-bold tracking-tight">Rp {globalSpent.toLocaleString('id-ID')}</span>
-              <span className="text-slate-400 font-black tracking-tight">/ Rp {globalBudget.toLocaleString('id-ID')}</span>
-            </div>
-          </div>
+          {activeTab === 'budgets' ? (
+            <>
+              {/* Overall Budget Progress Header */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-700 text-sm">Total Terserap (Kategori Beranggaran)</span>
+                  {globalBudget === 0 ? (
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Belum diatur</span>
+                  ) : isOverLimit ? (
+                    <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-1 rounded-md uppercase tracking-wider">Kritis / Melebihi Batas</span>
+                  ) : isNearLimit ? (
+                    <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-md uppercase tracking-wider">Hampir Habis</span>
+                  ) : (
+                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md uppercase tracking-wider">Aman</span>
+                  )}
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden relative">
+                  <div 
+                    className={cn(
+                      "h-4 rounded-full transition-all duration-500", 
+                      globalBudget === 0 ? "bg-slate-200" : isOverLimit ? "bg-rose-500" : isNearLimit ? "bg-amber-400" : "bg-emerald-400"
+                    )} 
+                    style={{ width: `${globalBudget === 0 ? 0 : validPercentage}%` }}
+                  ></div>
+                </div>
+                <div className="flex items-center justify-between text-xs mt-1">
+                  <span className="text-slate-500 font-bold tracking-tight">Rp {globalSpent.toLocaleString('id-ID')}</span>
+                  <span className="text-slate-400 font-black tracking-tight">/ Rp {globalBudget.toLocaleString('id-ID')}</span>
+                </div>
+              </div>
 
-          <div className="pt-4 border-t border-slate-100">
-            <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
-               Budget Tiap Kategori
-            </h4>
-            {budgets.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {budgets.map((b, idx) => {
-                  const spent = transactions
-                    .filter(t => t.type === 'expense' && t.category === b.categoryId && t.date?.toDate)
-                    .filter(t => {
-                      const tDate = t.date.toDate();
-                      return isSameMonthPeriod(tDate);
-                    })
-                    .reduce((sum, t) => sum + t.amount, 0);
+              {/* Budget entries list */}
+              <div className="pt-4 border-t border-slate-100">
+                <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2 mb-4">
+                   Budget Tiap Kategori
+                </h4>
+                {budgets.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {budgets.map((b, idx) => {
+                      const spent = transactions
+                        .filter(t => t.type === 'expense' && t.category === b.categoryId && t.date?.toDate)
+                        .filter(t => {
+                          const tDate = t.date.toDate();
+                          return isSameMonthPeriod(tDate);
+                        })
+                        .reduce((sum, t) => sum + t.amount, 0);
 
-                  const catPercentage = b.amount > 0 ? (spent / b.amount) * 100 : 0;
-                  const validCatPercentage = Math.min(catPercentage, 100);
-                  const isCatNearLimit = catPercentage >= 75 && catPercentage < 90;
-                  const isCatOverLimit = catPercentage >= 90;
+                      const catPercentage = b.amount > 0 ? (spent / b.amount) * 100 : 0;
+                      const validCatPercentage = Math.min(catPercentage, 100);
+                      const isCatNearLimit = catPercentage >= 75 && catPercentage < 90;
+                      const isCatOverLimit = catPercentage >= 90;
 
-                  return (
-                    <div key={`budget-${b.id || idx}-${idx}`} className="flex flex-col p-4 bg-slate-50 rounded-2xl group border border-slate-100 shadow-sm gap-2 relative">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-slate-700 text-xs truncate max-w-[120px]">{b.categoryId}</span>
-                        {isCatOverLimit ? (
-                          <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded uppercase tracking-wider">Kritis</span>
-                        ) : isCatNearLimit ? (
-                          <span className="text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded uppercase tracking-wider">Hampir</span>
-                        ) : (
-                          <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded uppercase tracking-wider">Aman</span>
-                        )}
-                      </div>
-                      <div className="w-full bg-slate-200/50 rounded-full h-1.5 mb-1.5 overflow-hidden">
-                        <div 
-                          className={cn("h-1.5 rounded-full transition-all duration-500", isCatOverLimit ? "bg-rose-500" : isCatNearLimit ? "bg-amber-400" : "bg-emerald-400")} 
-                          style={{ width: `${validCatPercentage}%` }}
-                        ></div>
-                      </div>
-                      
-                      {editingBudgetId === b.id ? (
-                        <form 
-                          onSubmit={(e) => { e.preventDefault(); onUpdateBudget(b.id, editingBudgetAmount); }}
-                          className="flex items-center gap-2 mt-1"
-                        >
-                          <span className="text-[11px] font-bold text-slate-400">Rp</span>
-                          <input 
-                            autoFocus
-                            type="number"
-                            value={editingBudgetAmount || ''}
-                            onChange={(e) => setEditingBudgetAmount(Number(e.target.value))}
-                            className="flex-1 bg-white px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-1 focus:ring-indigo-500 text-[11px] font-bold text-slate-800 shadow-sm"
-                          />
-                          <button type="submit" className="text-emerald-500 hover:text-emerald-600">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button type="button" onClick={() => setEditingBudgetId(null)} className="text-slate-400 hover:text-slate-500">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </form>
-                      ) : (
-                        <div className="flex items-center justify-between text-[11px]">
-                           <div className="flex items-baseline gap-1">
-                             <span className="text-slate-500 font-bold">Rp{spent.toLocaleString('id-ID')}</span>
-                             <span className="text-slate-400 font-medium">/ Rp{b.amount.toLocaleString('id-ID')}</span>
-                           </div>
-                           <div className="flex items-center opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all ml-2 gap-1 bg-white px-1 py-1 rounded-md shadow-sm border border-slate-100 absolute bottom-3 right-3">
-                             <button 
-                                type="button"
-                                onClick={() => {
-                                  setEditingBudgetId(b.id);
-                                  setEditingBudgetAmount(b.amount);
-                                }}
-                                className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
-                              >
-                                <Pencil className="w-3 h-3" />
-                             </button>
-                             <button 
-                                type="button"
-                                onClick={() => onDeleteBudget(b.id)}
-                                className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                             </button>
-                           </div>
+                      return (
+                        <div key={`budget-${b.id || idx}-${idx}`} className="flex flex-col p-4 bg-slate-50 rounded-2xl group border border-slate-100 shadow-sm gap-2 relative">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-slate-700 text-xs truncate max-w-[120px]">{b.categoryId}</span>
+                            {isCatOverLimit ? (
+                              <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded uppercase tracking-wider">Kritis</span>
+                            ) : isCatNearLimit ? (
+                              <span className="text-[9px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded uppercase tracking-wider">Hampir</span>
+                            ) : (
+                              <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded uppercase tracking-wider">Aman</span>
+                            )}
+                          </div>
+                          <div className="w-full bg-slate-200/50 rounded-full h-1.5 mb-1.5 overflow-hidden">
+                            <div 
+                              className={cn("h-1.5 rounded-full transition-all duration-500", isCatOverLimit ? "bg-rose-500" : isCatNearLimit ? "bg-amber-400" : "bg-emerald-400")} 
+                              style={{ width: `${validCatPercentage}%` }}
+                            ></div>
+                          </div>
+                          
+                          {editingBudgetId === b.id ? (
+                            <form 
+                              onSubmit={(e) => { 
+                                e.preventDefault(); 
+                                onUpdateBudget(b.id, editingBudgetCategory, editingBudgetAmount); 
+                              }}
+                              className="flex flex-col gap-2 mt-1 w-full"
+                            >
+                              <div className="flex gap-2">
+                                <select 
+                                  value={editingBudgetCategory} 
+                                  onChange={(e) => setEditingBudgetCategory(e.target.value)}
+                                  className="flex-1 bg-white px-2 py-1.5 rounded-lg border border-slate-200 focus:ring-1 focus:ring-indigo-500 text-[11px] font-bold text-slate-800 shadow-sm"
+                                >
+                                  {Array.from(new Set([
+                                    b.categoryId,
+                                    ...categoryOptions.filter(c => !budgets.some(budget => budget.categoryId === c))
+                                  ])).map((cat) => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                  ))}
+                                </select>
+                                
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[11px] font-bold text-slate-400">Rp</span>
+                                  <input 
+                                    autoFocus
+                                    type="number"
+                                    value={editingBudgetAmount || ''}
+                                    onChange={(e) => setEditingBudgetAmount(Number(e.target.value))}
+                                    className="w-24 bg-white px-2 py-1.5 rounded-lg border border-slate-200 focus:ring-1 focus:ring-indigo-500 text-[11px] font-bold text-slate-800 shadow-sm"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex justify-end gap-2 pr-1">
+                                <button type="submit" className="text-emerald-500 hover:text-emerald-600 p-1">
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button type="button" onClick={() => setEditingBudgetId(null)} className="text-slate-400 hover:text-slate-500 p-1">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <div className="flex items-center justify-between text-[11px]">
+                               <div className="flex items-baseline gap-1">
+                                 <span className="text-slate-500 font-bold">Rp{spent.toLocaleString('id-ID')}</span>
+                                 <span className="text-slate-400 font-medium">/ Rp{b.amount.toLocaleString('id-ID')}</span>
+                               </div>
+                               <div className="flex items-center opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all ml-2 gap-1 bg-white px-1 py-1 rounded-md shadow-sm border border-slate-100 absolute bottom-3 right-3">
+                                 <button 
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingBudgetId(b.id);
+                                      setEditingBudgetAmount(b.amount);
+                                      setEditingBudgetCategory(b.categoryId);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                 </button>
+                                 <button 
+                                    type="button"
+                                    onClick={() => onDeleteBudget(b.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-500 transition-colors"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                 </button>
+                               </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {/* Form to append new budget target */}
+                <form onSubmit={onAddBudget} className="flex flex-col sm:flex-row gap-2 mt-4">
+                  <select 
+                    value={editingBudgetCategory} 
+                    onChange={(e) => setEditingBudgetCategory(e.target.value)}
+                    className="bg-slate-50 px-4 py-3 rounded-2xl border-none text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Pilih Kategori...</option>
+                    {categoryOptions.filter(c => !budgets.find(b => b.categoryId === c)).map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  <div className="flex-1 relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">Rp</span>
+                    <input 
+                      type="number"
+                      value={editingBudgetAmount || ''}
+                      onChange={(e) => setEditingBudgetAmount(Number(e.target.value))}
+                      placeholder="Nominal budget..." 
+                      className="w-full bg-slate-50 pl-10 pr-4 py-3 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800" 
+                    />
+                  </div>
+                  <button type="submit" className="px-6 py-3 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 shadow-md transition-all font-bold text-xs uppercase shrink-0">
+                    Tambah
+                  </button>
+                </form>
               </div>
-            )}
-            
-            <form onSubmit={onAddBudget} className="flex flex-col sm:flex-row gap-2 mt-4">
-              <select 
-                value={editingBudgetCategory} 
-                onChange={(e) => setEditingBudgetCategory(e.target.value)}
-                className="bg-slate-50 px-4 py-3 rounded-2xl border-none text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Pilih Kategori...</option>
-                {categoryOptions.filter(c => !budgets.find(b => b.categoryId === c)).map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
+            </>
+          ) : (
+            /* Custom Expense Category Manager inside Budget Modal */
+            <div className="space-y-6">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div>
+                  <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] flex items-center gap-2">
+                    Kelola Kategori Anggaran (Pengeluaran)
+                  </h4>
+                  <p className="text-[10px] text-slate-400 mt-1">Kategori bawaan tidak dapat diubah/dihapus.</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3 max-h-64 overflow-auto pr-2">
+                {DEFAULT_EXPENSE_CATEGORIES.map((cat, idx) => (
+                  <div key={`budget-def-exp-${idx}`} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-transparent">
+                    <span className="font-bold text-slate-700 text-sm">{cat}</span>
+                    <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Bawaan</span>
+                  </div>
                 ))}
-              </select>
-              <div className="flex-1 relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">Rp</span>
-                <input 
-                  type="number"
-                  value={editingBudgetAmount || ''}
-                  onChange={(e) => setEditingBudgetAmount(Number(e.target.value))}
-                  placeholder="Nominal budget..." 
-                  className="w-full bg-slate-50 pl-10 pr-4 py-3 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800" 
-                />
+                
+                {customCategories.filter(c => c.type === 'expense').map((cat, idx) => (
+                  <div key={`budget-cust-exp-${cat.id || idx}-${idx}`} className="flex items-center justify-between p-4 bg-white rounded-2xl group border border-slate-100 shadow-sm">
+                    {editingCategoryId === cat.id ? (
+                      <div className="flex-1 flex gap-2">
+                        <input 
+                          autoFocus
+                          type="text"
+                          value={editingCategoryValue}
+                          onChange={(e) => setEditingCategoryValue(e.target.value)}
+                          className="flex-1 bg-slate-50 px-3 py-1.5 rounded-xl border-none focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-slate-800"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') onUpdateCategory(cat.id, editingCategoryValue);
+                            if (e.key === 'Escape') setEditingCategoryId(null);
+                          }}
+                        />
+                        <button type="button" onClick={() => onUpdateCategory(cat.id, editingCategoryValue)} className="text-emerald-500 hover:text-emerald-600 p-1">
+                          <Check className="w-5 h-5" />
+                        </button>
+                        <button type="button" onClick={() => setEditingCategoryId(null)} className="text-slate-400 hover:text-slate-500 p-1">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-bold text-slate-700 text-sm">{cat.name}</span>
+                        <div className="flex items-center gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setEditingCategoryId(cat.id);
+                              setEditingCategoryValue(cat.name);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => onDeleteCategory(cat.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
-              <button type="submit" className="px-6 py-3 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 shadow-md transition-all font-bold text-xs uppercase shrink-0">
-                Tambah
-              </button>
-            </form>
-          </div>
+              
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const input = form.elements.namedItem('category') as HTMLInputElement;
+                if (input && input.value.trim()) {
+                  onAddCategory(input.value.trim(), 'expense');
+                  input.value = '';
+                }
+              }} className="flex gap-2">
+                <input name="category" placeholder="Kategori baru..." className="flex-1 bg-slate-50 px-4 py-3 rounded-xl border-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-800" />
+                <button type="submit" className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md shadow-indigo-100 transition-all">
+                  <Plus className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

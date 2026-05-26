@@ -460,12 +460,34 @@ export default function App() {
   };
 
   const handleUpdateCategory = async (id: string, newName: string) => {
-    if (!newName.trim()) return;
+    if (!newName.trim() || !user) return;
+    const oldCategory = customCategories.find(c => c.id === id);
+    if (!oldCategory) return;
+    const oldName = oldCategory.name;
     const path = `customCategories/${id}`;
+    
     try {
+      // 1. Update the category itself
       await updateDoc(doc(db, 'customCategories', id), { name: newName.trim() });
+      
+      // 2. Propagate to transactions
+      const txQuery = query(collection(db, 'transactions'), where('userId', '==', user.uid), where('category', '==', oldName));
+      const txSnapshot = await getDocs(txQuery);
+      const batchPromises = txSnapshot.docs.map(docSnap => 
+        updateDoc(doc(db, 'transactions', docSnap.id), { category: newName.trim() })
+      );
+
+      // 3. Propagate to budgets
+      const budgetQuery = query(collection(db, 'budgets'), where('userId', '==', user.uid), where('categoryId', '==', oldName));
+      const budgetSnapshot = await getDocs(budgetQuery);
+      const budgetPromises = budgetSnapshot.docs.map(docSnap =>
+        updateDoc(doc(db, 'budgets', docSnap.id), { categoryId: newName.trim() })
+      );
+
+      await Promise.all([...batchPromises, ...budgetPromises]);
+
       setEditingCategoryId(null);
-      success("Kategori berhasil diubah!");
+      success("Kategori beserta data transaksi & anggaran terkait berhasil diperbarui!");
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -506,8 +528,33 @@ export default function App() {
         success("Transaksi berhasil dihapus.");
       } else if (type === 'category') {
         path = `customCategories/${id}`;
-        await deleteDoc(doc(db, 'customCategories', id));
-        success("Kategori berhasil dihapus.");
+        const catDoc = customCategories.find(c => c.id === id);
+        if (catDoc && user) {
+          const oldName = catDoc.name;
+          
+          // Delete category doc
+          await deleteDoc(doc(db, 'customCategories', id));
+
+          // Reset category of related transactions to 'Lainnya'
+          const txQuery = query(collection(db, 'transactions'), where('userId', '==', user.uid), where('category', '==', oldName));
+          const txSnapshot = await getDocs(txQuery);
+          const txPromises = txSnapshot.docs.map(docSnap => 
+            updateDoc(doc(db, 'transactions', docSnap.id), { category: 'Lainnya' })
+          );
+
+          // Delete budgets corresponding to this category
+          const budgetQuery = query(collection(db, 'budgets'), where('userId', '==', user.uid), where('categoryId', '==', oldName));
+          const budgetSnapshot = await getDocs(budgetQuery);
+          const budgetPromises = budgetSnapshot.docs.map(docSnap => 
+            deleteDoc(doc(db, 'budgets', docSnap.id))
+          );
+
+          await Promise.all([...txPromises, ...budgetPromises]);
+          success("Kategori berhasil dihapus, transaksi dipindahkan ke 'Lainnya'.");
+        } else {
+          await deleteDoc(doc(db, 'customCategories', id));
+          success("Kategori berhasil dihapus.");
+        }
       } else if (type === 'wallet') {
         path = `wallets/${id}`;
         await deleteDoc(doc(db, 'wallets', id));
@@ -566,12 +613,12 @@ export default function App() {
     }
   };
 
-  const handleUpdateBudget = async (id: string, newAmount: number) => {
-    if (newAmount <= 0) return;
+  const handleUpdateBudget = async (id: string, newCategory: string, newAmount: number) => {
+    if (newAmount <= 0 || !newCategory) return;
     try {
-      await setDoc(doc(db, 'budgets', id), { amount: newAmount }, { merge: true });
+      await setDoc(doc(db, 'budgets', id), { categoryId: newCategory, amount: newAmount }, { merge: true });
       setEditingBudgetId(null);
-      success("Budget nominal berhasil diupdate.");
+      success("Anggaran berhasil diperbarui!");
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `budgets/${id}`);
     }
@@ -1112,6 +1159,13 @@ export default function App() {
               onUpdateBudget={handleUpdateBudget}
               onDeleteBudget={deleteBudget}
               customCategories={customCategories}
+              onAddCategory={handleAddCategory}
+              onUpdateCategory={handleUpdateCategory}
+              onDeleteCategory={handleDeleteCategory}
+              editingCategoryId={editingCategoryId}
+              setEditingCategoryId={setEditingCategoryId}
+              editingCategoryValue={editingCategoryValue}
+              setEditingCategoryValue={setEditingCategoryValue}
             />
           )}
 
