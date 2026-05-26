@@ -253,29 +253,29 @@ export function AIInsights({ transactions }: AIInsightsProps) {
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-150 shadow-xl shadow-slate-100/50 p-5 md:p-6 overflow-hidden relative">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="bg-white rounded-2xl md:rounded-3xl border border-slate-150 shadow-md md:shadow-xl shadow-slate-100/50 p-4 md:p-6 overflow-hidden relative">
+      <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100/50">
         {/* Left: Branding & Tag */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-xl">
-            <Sparkles className="w-4 h-4" />
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg md:rounded-xl">
+            <Sparkles className="w-3.5 h-3.5 md:w-4 h-4" />
           </div>
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+          <h3 className="text-[10px] md:text-xs font-black text-indigo-900/40 uppercase tracking-widest leading-none">
             Insight AI
           </h3>
         </div>
 
         {/* Right: Controls & Indicators */}
         {insights.length > 1 && (
-          <div className="flex items-center gap-3 self-end sm:self-auto">
+          <div className="flex items-center gap-2 md:gap-3">
             {/* Dots */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 md:gap-1.5">
               {insights.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => setCurrentIndex(idx)}
                   className={`h-1 rounded-full transition-all duration-300 ${
-                    currentIndex === idx ? 'w-4 bg-indigo-600' : 'w-1 bg-slate-200 hover:bg-slate-300'
+                    currentIndex === idx ? 'w-3 md:w-4 bg-indigo-600' : 'w-1 bg-slate-200 hover:bg-slate-300'
                   }`}
                   title={`Insight ${idx + 1}`}
                 />
@@ -283,22 +283,22 @@ export function AIInsights({ transactions }: AIInsightsProps) {
             </div>
 
             {/* Nav Arrows */}
-            <div className="flex items-center bg-slate-50 border border-slate-100 rounded-xl p-0.5">
+            <div className="flex items-center bg-slate-50 border border-slate-100 rounded-lg p-0.5">
               <button
                 type="button"
                 onClick={handlePrev}
-                className="p-1 hover:text-indigo-600 text-slate-400 rounded-lg hover:bg-white transition-all"
+                className="p-1 hover:text-indigo-600 text-slate-400 rounded-md hover:bg-white transition-all"
                 title="Sebelumnya"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
                 onClick={handleNext}
-                className="p-1 hover:text-indigo-600 text-slate-400 rounded-lg hover:bg-white transition-all"
+                className="p-1 hover:text-indigo-600 text-slate-400 rounded-md hover:bg-white transition-all"
                 title="Berikutnya"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -306,7 +306,7 @@ export function AIInsights({ transactions }: AIInsightsProps) {
       </div>
 
       {/* Main Content Area */}
-      <div className="mt-4 relative min-h-[56px] flex items-center">
+      <div className="mt-3 md:mt-4 relative min-h-[48px] md:min-h-[56px] flex items-center">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentIndex}
@@ -314,16 +314,16 @@ export function AIInsights({ transactions }: AIInsightsProps) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -15 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="flex items-center gap-4 w-full"
+            className="flex items-center gap-3 md:gap-4 w-full"
           >
             {/* Soft Icon Badge */}
-            <div className={`p-3 rounded-2xl shrink-0 border shadow-sm ${currentInsight.colorClass}`}>
+            <div className={`p-2.5 md:p-3 rounded-xl md:rounded-2xl shrink-0 border shadow-sm ${currentInsight.colorClass}`}>
               {currentInsight.icon}
             </div>
 
             {/* Dynamic Text */}
             <div className="flex-1 min-w-0">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">
+              <span className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">
                 {currentInsight.badge}
               </span>
               <p className="text-xs font-semibold text-slate-700 leading-relaxed truncate-2-lines">
